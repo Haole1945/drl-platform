@@ -101,3 +101,14 @@ export async function logout(): Promise<void> {
   }
 }
 
+/**
+ * Change user password
+ */
+export async function changePassword(data: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<ApiResponse<void>> {
+  return apiClient.post<void>('/auth/change-password', data);
+}
+

@@ -13,8 +13,11 @@ import {
   Award, 
   Settings, 
   LogOut,
-  CheckSquare 
+  CheckSquare,
+  Calendar,
+  User
 } from 'lucide-react';
+import { NotificationBell } from '@/components/NotificationBell';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -85,10 +88,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <div className="text-sm">
-              <div className="font-medium">{user?.fullName}</div>
-              <div className="text-muted-foreground text-xs">{user ? getPrimaryRoleDisplayName(user) : ''}</div>
-            </div>
+            <NotificationBell />
+            <Link href="/profile">
+              <Button variant="ghost" size="icon">
+                <User className="h-4 w-4" />
+              </Button>
+            </Link>
             <Button variant="ghost" size="icon" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
             </Button>

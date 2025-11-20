@@ -131,8 +131,15 @@ public class NotificationService {
                 
                 // Create notification for each user
                 for (Long userId : userIds) {
-                    // Check if notification already exists to avoid duplicates
-                    if (!notificationExists(Notification.NotificationType.PERIOD_CREATED, "EVALUATION_PERIOD", periodId)) {
+                    // Check if notification already exists for this specific user to avoid duplicates
+                    List<Notification> existing = notificationRepository.findByUserIdAndTypeAndRelatedTypeAndRelatedId(
+                        userId,
+                        Notification.NotificationType.PERIOD_CREATED,
+                        "EVALUATION_PERIOD",
+                        periodId
+                    );
+                    
+                    if (existing.isEmpty()) {
                         createNotification(
                             userId,
                             title,

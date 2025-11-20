@@ -24,17 +24,23 @@ public class NotificationController {
      */
     @GetMapping
     public ResponseEntity<ApiResponse<Page<NotificationDTO>>> getNotifications(
-            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-User-Id", required = false) String userIdStr,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         
-        if (userId == null) {
+        if (userIdStr == null || userIdStr.isEmpty()) {
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error("User ID is required"));
         }
         
-        Page<NotificationDTO> notifications = notificationService.getUserNotifications(userId, page, size);
-        return ResponseEntity.ok(ApiResponse.success("Notifications retrieved", notifications));
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            Page<NotificationDTO> notifications = notificationService.getUserNotifications(userId, page, size);
+            return ResponseEntity.ok(ApiResponse.success("Notifications retrieved", notifications));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Invalid user ID format"));
+        }
     }
     
     /**
@@ -42,15 +48,21 @@ public class NotificationController {
      */
     @GetMapping("/unread")
     public ResponseEntity<ApiResponse<java.util.List<NotificationDTO>>> getUnreadNotifications(
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdStr) {
         
-        if (userId == null) {
+        if (userIdStr == null || userIdStr.isEmpty()) {
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error("User ID is required"));
         }
         
-        java.util.List<NotificationDTO> notifications = notificationService.getUnreadNotifications(userId);
-        return ResponseEntity.ok(ApiResponse.success("Unread notifications retrieved", notifications));
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            java.util.List<NotificationDTO> notifications = notificationService.getUnreadNotifications(userId);
+            return ResponseEntity.ok(ApiResponse.success("Unread notifications retrieved", notifications));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Invalid user ID format"));
+        }
     }
     
     /**
@@ -58,15 +70,21 @@ public class NotificationController {
      */
     @GetMapping("/unread/count")
     public ResponseEntity<ApiResponse<Long>> getUnreadCount(
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdStr) {
         
-        if (userId == null) {
+        if (userIdStr == null || userIdStr.isEmpty()) {
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error("User ID is required"));
         }
         
-        long count = notificationService.countUnreadNotifications(userId);
-        return ResponseEntity.ok(ApiResponse.success("Unread count retrieved", count));
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            long count = notificationService.countUnreadNotifications(userId);
+            return ResponseEntity.ok(ApiResponse.success("Unread count retrieved", count));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Invalid user ID format"));
+        }
     }
     
     /**
@@ -75,15 +93,21 @@ public class NotificationController {
     @PutMapping("/{id}/read")
     public ResponseEntity<ApiResponse<Void>> markAsRead(
             @PathVariable Long id,
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdStr) {
         
-        if (userId == null) {
+        if (userIdStr == null || userIdStr.isEmpty()) {
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error("User ID is required"));
         }
         
-        notificationService.markAsRead(id, userId);
-        return ResponseEntity.ok(ApiResponse.success("Notification marked as read", null));
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            notificationService.markAsRead(id, userId);
+            return ResponseEntity.ok(ApiResponse.success("Notification marked as read", null));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Invalid user ID format"));
+        }
     }
     
     /**
@@ -91,15 +115,21 @@ public class NotificationController {
      */
     @PutMapping("/read-all")
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(
-            @RequestHeader(value = "X-User-Id", required = false) Long userId) {
+            @RequestHeader(value = "X-User-Id", required = false) String userIdStr) {
         
-        if (userId == null) {
+        if (userIdStr == null || userIdStr.isEmpty()) {
             return ResponseEntity.badRequest()
                 .body(ApiResponse.error("User ID is required"));
         }
         
-        notificationService.markAllAsRead(userId);
-        return ResponseEntity.ok(ApiResponse.success("All notifications marked as read", null));
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            notificationService.markAllAsRead(userId);
+            return ResponseEntity.ok(ApiResponse.success("All notifications marked as read", null));
+        } catch (NumberFormatException e) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Invalid user ID format"));
+        }
     }
 }
 
