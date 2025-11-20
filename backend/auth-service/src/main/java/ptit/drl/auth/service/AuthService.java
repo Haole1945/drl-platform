@@ -1,0 +1,382 @@
+package ptit.drl.auth.service;
+
+import feign.FeignException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import ptit.drl.auth.dto.*;
+import ptit.drl.auth.entity.User;
+import ptit.drl.auth.entity.Role;
+import ptit.drl.auth.exception.AuthenticationException;
+import ptit.drl.auth.exception.DuplicateResourceException;
+import ptit.drl.auth.exception.ResourceNotFoundException;
+import ptit.drl.auth.mapper.UserMapper;
+import ptit.drl.auth.repository.UserRepository;
+import ptit.drl.auth.repository.RoleRepository;
+import ptit.drl.auth.util.JwtTokenProvider;
+import ptit.drl.auth.client.StudentServiceClient;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ * Service for authentication and authorization
+ * Uses Feign Client to communicate with student-service for student validation
+ */
+@Service
+@Transactional
+public class AuthService {
+    
+    @Autowired
+    private UserRepository userRepository;
+    
+    @Autowired
+    private RoleRepository roleRepository;
+    
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+    
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
+    
+    @Autowired
+    private StudentServiceClient studentServiceClient;
+    
+    @Autowired
+    private EmailService emailService;
+    
+    /**
+     * Register a new user
+     * Validates studentCode exists via student-service if provided
+     */
+    public UserDTO register(RegisterRequest request) {
+        // Check if username exists
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new DuplicateResourceException("User", "username", request.getUsername());
+        }
+        
+        // Check if email exists
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new DuplicateResourceException("User", "email", request.getEmail());
+        }
+        
+        // Validate studentCode if provided (for student users)
+        if (request.getStudentCode() != null && !request.getStudentCode().isEmpty()) {
+            try {
+                StudentServiceClient.StudentResponse studentResponse = 
+                    studentServiceClient.getStudentByCode(request.getStudentCode());
+                // If response is null or indicates failure, student doesn't exist
+                if (studentResponse == null || !studentResponse.isSuccess() || studentResponse.getData() == null) {
+                    throw new ResourceNotFoundException(
+                        "Student", "code", request.getStudentCode());
+                }
+            } catch (ResourceNotFoundException e) {
+                // Re-throw if already ResourceNotFoundException (from error decoder)
+                // Update message to include actual studentCode
+                throw new ResourceNotFoundException(
+                    "Student", "code", request.getStudentCode());
+            } catch (FeignException.NotFound e) {
+                // Feign 404 exception (fallback if error decoder didn't catch it)
+                throw new ResourceNotFoundException(
+                    "Student", "code", request.getStudentCode());
+            } catch (FeignException e) {
+                // Other Feign exceptions (e.g., 500, 503)
+                if (e.status() == 404) {
+                    throw new ResourceNotFoundException(
+                        "Student", "code", request.getStudentCode());
+                }
+                // For other errors, re-throw as generic exception
+                throw new RuntimeException("Failed to validate student code: " + e.getMessage(), e);
+            } catch (Exception e) {
+                // Check if it's a ResourceNotFoundException wrapped in the exception
+                if (e instanceof ResourceNotFoundException) {
+                    throw (ResourceNotFoundException) e;
+                }
+                if (e.getCause() instanceof ResourceNotFoundException) {
+                    throw (ResourceNotFoundException) e.getCause();
+                }
+                // If we can't determine, assume student doesn't exist
+                throw new ResourceNotFoundException(
+                    "Student", "code", request.getStudentCode());
+            }
+        }
+        
+        // Create new user
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setFullName(request.getFullName());
+        user.setStudentCode(request.getStudentCode());
+        user.setIsActive(true);
+        
+        // Assign default role (STUDENT)
+        Role studentRole = roleRepository.findById("STUDENT")
+                .orElseThrow(() -> new ResourceNotFoundException("Role", "name", "STUDENT"));
+        user.addRole(studentRole);
+        
+        User saved = userRepository.save(user);
+        return UserMapper.toDTO(saved);
+    }
+    
+    /**
+     * Request password - Send password to student email
+     * Extracts studentCode from email (format: studentCode@student.ptithcm.edu.vn)
+     */
+    public void requestPassword(RequestPasswordRequest request) {
+        // Extract studentCode from email (e.g., n21dccn001@student.ptithcm.edu.vn -> n21dccn001)
+        String email = request.getEmail();
+        String studentCodeFromEmail = email.substring(0, email.indexOf('@'));
+        String studentCode = studentCodeFromEmail.toUpperCase(); // Normalize to uppercase for lookup
+        
+        // Validate student exists and get student data
+        StudentServiceClient.StudentDTO studentData = null;
+        try {
+            StudentServiceClient.StudentResponse studentResponse = 
+                studentServiceClient.getStudentByCode(studentCode);
+            if (studentResponse == null || !studentResponse.isSuccess() || studentResponse.getData() == null) {
+                throw new ResourceNotFoundException("Student", "code", studentCode);
+            }
+            studentData = studentResponse.getData();
+        } catch (Exception e) {
+            throw new ResourceNotFoundException("Student", "code", studentCode);
+        }
+        
+        // Normalize username to lowercase (e.g., n21dccn001)
+        String username = studentCodeFromEmail.toLowerCase();
+        
+        // Check if user already exists (by email or username)
+        User existingUser = userRepository.findByEmail(email)
+                .orElse(userRepository.findByUsernameIgnoreCase(username).orElse(null));
+        String password;
+        
+        if (existingUser != null) {
+            // User exists, generate new password
+            password = generateRandomPassword();
+            existingUser.setPasswordHash(passwordEncoder.encode(password));
+            // Update fullName from student data if available
+            if (studentData != null && studentData.getFullName() != null) {
+                existingUser.setFullName(studentData.getFullName());
+            }
+            
+            // Auto-assign CLASS_MONITOR role if student position is CLASS_MONITOR
+            if (studentData != null && "CLASS_MONITOR".equalsIgnoreCase(studentData.getPosition())) {
+                Role classMonitorRole = roleRepository.findById("CLASS_MONITOR")
+                        .orElse(null);
+                if (classMonitorRole != null && !existingUser.getRoles().contains(classMonitorRole)) {
+                    existingUser.addRole(classMonitorRole);
+                    System.out.println("[Auth Service] Auto-assigned CLASS_MONITOR role to existing user: " + studentCode);
+                }
+            }
+            
+            userRepository.save(existingUser);
+        } else {
+            // Create new user - only when requesting password for the first time
+            password = generateRandomPassword();
+            User user = new User();
+            user.setUsername(username); // Use lowercase studentCode as username (e.g., n21dccn001)
+            user.setEmail(email);
+            user.setPasswordHash(passwordEncoder.encode(password));
+            // Set fullName from student data
+            user.setFullName(studentData != null && studentData.getFullName() != null 
+                    ? studentData.getFullName() 
+                    : studentCode);
+            user.setStudentCode(studentCode);
+            user.setIsActive(true);
+            
+            // Assign default role (STUDENT)
+            Role studentRole = roleRepository.findById("STUDENT")
+                    .orElseThrow(() -> new ResourceNotFoundException("Role", "name", "STUDENT"));
+            user.addRole(studentRole);
+            
+            // Auto-assign CLASS_MONITOR role if student position is CLASS_MONITOR
+            if (studentData != null && "CLASS_MONITOR".equalsIgnoreCase(studentData.getPosition())) {
+                Role classMonitorRole = roleRepository.findById("CLASS_MONITOR")
+                        .orElse(null);
+                if (classMonitorRole != null) {
+                    user.addRole(classMonitorRole);
+                    System.out.println("[Auth Service] Auto-assigned CLASS_MONITOR role to student: " + studentCode);
+                }
+            }
+            
+            userRepository.save(user);
+        }
+        
+        // Send password via email
+        emailService.sendPasswordEmail(email, studentCode, password);
+    }
+    
+    /**
+     * Generate random password (8-12 characters, alphanumeric)
+     */
+    private String generateRandomPassword() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        StringBuilder password = new StringBuilder();
+        java.util.Random random = new java.util.Random();
+        int length = 8 + random.nextInt(5); // 8-12 characters
+        
+        // Ensure at least one uppercase, one lowercase, one digit
+        password.append(chars.charAt(random.nextInt(26))); // Uppercase
+        password.append(chars.charAt(26 + random.nextInt(26))); // Lowercase
+        password.append(chars.charAt(52 + random.nextInt(10))); // Digit
+        
+        // Fill rest randomly
+        for (int i = 3; i < length; i++) {
+            password.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        
+        // Shuffle
+        char[] passwordArray = password.toString().toCharArray();
+        for (int i = passwordArray.length - 1; i > 0; i--) {
+            int j = random.nextInt(i + 1);
+            char temp = passwordArray[i];
+            passwordArray[i] = passwordArray[j];
+            passwordArray[j] = temp;
+        }
+        
+        return new String(passwordArray);
+    }
+    
+    /**
+     * Authenticate user and generate tokens
+     * Now supports both email and username login (case-insensitive for username)
+     */
+    public AuthResponse login(LoginRequest request) {
+        String loginInput = request.getUsername().trim();
+        User user = null;
+        
+        // Try to find user by email first (optimized with fetch join)
+        if (loginInput.contains("@")) {
+            user = userRepository.findByEmail(loginInput).orElse(null);
+        }
+        
+        // If not found by email, try by username (case-insensitive, optimized)
+        if (user == null) {
+            user = userRepository.findByUsernameIgnoreCase(loginInput.toLowerCase())
+                    .orElseThrow(() -> new AuthenticationException("Invalid email/username or password"));
+        }
+        
+        // Check if account is active
+        if (!user.getIsActive()) {
+            throw new AuthenticationException("Account is inactive. Please contact administrator.");
+        }
+        
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new AuthenticationException("Invalid username or password");
+        }
+        
+        // Get roles and permissions
+        Set<String> roles = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+        
+        Set<String> permissions = user.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .map(ptit.drl.auth.entity.Permission::getName)
+                .collect(Collectors.toSet());
+        
+        // Generate tokens
+        String accessToken = jwtTokenProvider.generateAccessToken(
+                user.getId(), user.getUsername(), roles, permissions);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(user.getId());
+        
+        // Create response
+        AuthResponse response = new AuthResponse();
+        response.setAccessToken(accessToken);
+        response.setRefreshToken(refreshToken);
+        response.setExpiresIn(jwtTokenProvider.getAccessTokenExpiration());
+        response.setRefreshExpiresIn(jwtTokenProvider.getRefreshTokenExpiration());
+        response.setUser(UserMapper.toDTO(user));
+        
+        return response;
+    }
+    
+    /**
+     * Refresh access token
+     */
+    public AuthResponse refreshToken(String refreshToken) {
+        // Validate refresh token
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new AuthenticationException("Invalid or expired refresh token");
+        }
+        
+        // Get user ID from token
+        Long userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+        
+        // Find user (optimized with fetch join)
+        User user = userRepository.findByIdWithRoles(userId)
+                .orElseThrow(() -> new AuthenticationException("User not found for refresh token"));
+        
+        // Check if account is active
+        if (!user.getIsActive()) {
+            throw new AuthenticationException("Account is inactive. Please contact administrator.");
+        }
+        
+        // Get roles and permissions
+        Set<String> roles = user.getRoles().stream()
+                .map(Role::getName)
+                .collect(Collectors.toSet());
+        
+        Set<String> permissions = user.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .map(ptit.drl.auth.entity.Permission::getName)
+                .collect(Collectors.toSet());
+        
+        // Generate new access token
+        String newAccessToken = jwtTokenProvider.generateAccessToken(
+                user.getId(), user.getUsername(), roles, permissions);
+        
+        // Create response (refresh token stays the same)
+        AuthResponse response = new AuthResponse();
+        response.setAccessToken(newAccessToken);
+        response.setRefreshToken(refreshToken); // Keep same refresh token
+        response.setExpiresIn(jwtTokenProvider.getAccessTokenExpiration());
+        response.setRefreshExpiresIn(jwtTokenProvider.getRefreshTokenExpiration());
+        response.setUser(UserMapper.toDTO(user));
+        
+        return response;
+    }
+    
+    /**
+     * Get current user information
+     */
+    @Transactional(readOnly = true)
+    public UserDTO getCurrentUser(Long userId) {
+        // Use optimized query with fetch join to avoid N+1 queries
+        User user = userRepository.findByIdWithRoles(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        return UserMapper.toDTO(user);
+    }
+    
+    /**
+     * Get all active user IDs (for sending notifications)
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Long> getAllActiveUserIds() {
+        return userRepository.findAll().stream()
+                .filter(User::getIsActive)
+                .map(User::getId)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * Change user password
+     */
+    public void changePassword(Long userId, String currentPassword, String newPassword) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        
+        // Verify current password
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new AuthenticationException("Current password is incorrect");
+        }
+        
+        // Update password
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
+}
+

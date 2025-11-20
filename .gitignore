@@ -1,0 +1,14 @@
+# Java
+target/
+*.iml
+.idea/
+.mvn/wrapper/maven-wrapper.jar
+
+# Node
+node_modules/
+.next/
+dist/
+.env.local
+
+# OS
+.DS_Store

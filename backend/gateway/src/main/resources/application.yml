@@ -1,0 +1,87 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+
+  cloud:
+    loadbalancer:
+      cache:
+        enabled: true
+        ttl: 35s
+        capacity: 256
+      retry:
+        enabled: true
+        max-retries-on-next-service-instance: 2
+        max-retries-on-same-service-instance: 1
+    gateway:
+      httpclient:
+        connect-timeout: 10000  # Increased from 5s to 10s for slower connections
+        response-timeout: 30000  # Increased from 10s to 30s for file uploads and slower services
+        pool:
+          type: ELASTIC
+          max-connections: 500
+          max-idle-time: 30s
+          evict-in-background: true
+          evict-idle-timeout: 20s
+      routes:
+        # Auth Service Route (using service discovery)
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+        
+        # Student Service Route (using service discovery)
+        - id: student-service
+          uri: lb://student-service
+          predicates:
+            - Path=/api/students/**,/api/training-points/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+        
+        # Evaluation Service Route (using service discovery)
+        - id: evaluation-service
+          uri: lb://evaluation-service
+          predicates:
+            - Path=/api/evaluations/**,/api/rubrics/**,/api/criteria/**,/api/files/**,/api/evaluation-periods/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+
+# JWT Configuration (must match auth-service)
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production-minimum-32-characters-long}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+    registry-fetch-interval-seconds: 3
+    initial-instance-info-replication-interval-seconds: 3
+    # Don't filter instances by health status - route to all registered instances
+    healthcheck:
+      enabled: false
+    # Wait for services to be available
+    should-on-demand-update-status-change: true
+    should-unregister-on-shutdown: true
+    # Refresh service registry more frequently
+    should-fetch-registry: true
+    should-register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 15
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true

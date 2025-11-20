@@ -1,0 +1,30 @@
+# Development Docker Compose Override
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up frontend
+
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile.dev
+    container_name: drl-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount source code for hot reload
+      - ../frontend:/app
+      # Exclude node_modules and .next from mount (use container's)
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_BASE=http://localhost:8080/api
+      - WATCHPACK_POLLING=true  # Enable polling for file changes (useful on Windows)
+    command: npm run dev
+    depends_on:
+      - gateway
+    restart: unless-stopped
+    networks:
+      - drl-net
+

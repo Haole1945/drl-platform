@@ -1,0 +1,18 @@
+# Development Dockerfile for Frontend
+# Supports hot reload with volume mounting
+
+FROM node:20-alpine
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm install --legacy-peer-deps
+
+# Copy code (will be overridden by volume mount in docker-compose.dev.yml)
+COPY . .
+
+EXPOSE 3000
+
+# Run development server with hot reload
+CMD ["npm", "run", "dev"]
+

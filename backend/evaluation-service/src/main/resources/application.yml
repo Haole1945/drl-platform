@@ -1,0 +1,96 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: evaluation-service
+  
+  # Database configuration (will be overridden by environment variables in Docker)
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/drl}
+    username: ${SPRING_DATASOURCE_USERNAME:drl}
+    password: ${SPRING_DATASOURCE_PASSWORD:drl}
+    # Connection Pool Configuration (HikariCP)
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+  
+  jpa:
+    hibernate:
+      ddl-auto: none  # Flyway handles schema migrations - no need for Hibernate to manage schema
+      # Options: 'none' (do nothing - Flyway handles it), 'validate' (check only), 
+      #          'update' (auto-update - risky), 'create' (drop and create - DANGEROUS)
+    show-sql: ${SHOW_SQL:false}  # Disable in production for performance
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+        jdbc.batch_versioned_data: true
+  
+  # Flyway Configuration - handles database migrations properly
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true  # Creates baseline if tables already exist
+    validate-on-migrate: true  # Validates migrations on startup
+  
+  # Multipart File Upload Configuration
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: ${FILE_MAX_SIZE:52428800} # 50MB
+      max-request-size: ${FILE_MAX_SIZE:52428800} # 50MB
+      file-size-threshold: 2097152 # 2MB
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+feign:
+  client:
+    config:
+      default:
+        errorDecoder: ptit.drl.evaluation.config.FeignConfig$CustomErrorDecoder
+      student-service:
+        errorDecoder: ptit.drl.evaluation.config.FeignConfig$CustomErrorDecoder
+  httpclient:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+# File Upload Configuration
+file:
+  upload-dir: ${FILE_UPLOAD_DIR:./uploads/evidence}
+  max-size: ${FILE_MAX_SIZE:52428800} # 50MB in bytes
+
+# Swagger/OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true

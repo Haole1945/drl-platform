@@ -1,0 +1,222 @@
+# services:
+#   postgres:
+#     image: postgres:16
+#     container_name: drl-postgres
+#     environment:
+#       POSTGRES_DB: drl
+#       POSTGRES_USER: drl
+#       POSTGRES_PASSWORD: drl
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - dbdata:/var/lib/postgresql/data
+#     healthcheck:
+#       test: ["CMD-SHELL","pg_isready -U drl -d drl"]
+#       interval: 5s
+#       timeout: 3s
+#       retries: 10
+
+#   student-service:
+#     build:
+#       context: ../backend/student-service
+#       dockerfile: Dockerfile
+#     container_name: drl-student-service
+#     ports:
+#       - "8081:8081"
+#     depends_on:
+#       postgres:
+#         condition: service_healthy
+#     environment:
+#       # (Tuỳ chọn cho tuần sau khi kết DB)
+#       SPRING_PROFILES_ACTIVE: docker
+#       # SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/drl
+#       # SPRING_DATASOURCE_USERNAME: drl
+#       # SPRING_DATASOURCE_PASSWORD: drl
+
+#   gateway:
+#     build:
+#       context: ../backend/gateway
+#       dockerfile: Dockerfile
+#     container_name: drl-gateway
+#     ports:
+#       - "8080:8080"
+#     depends_on:
+#       - student-service
+
+# volumes:
+#   dbdata:
+
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: drl-postgres
+    environment:
+      POSTGRES_DB: drl
+      POSTGRES_USER: drl
+      POSTGRES_PASSWORD: drl
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U drl -d drl"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    shm_size: 256mb
+    networks:
+      - drl-net
+
+  eureka-server:
+    build:
+      context: ../backend/eureka-server
+      dockerfile: Dockerfile
+    container_name: drl-eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - drl-net
+
+  auth-service:
+    build:
+      context: ../backend/auth-service
+      dockerfile: Dockerfile
+    container_name: drl-auth-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/drl
+      SPRING_DATASOURCE_USERNAME: drl
+      SPRING_DATASOURCE_PASSWORD: drl
+      JWT_SECRET: ${JWT_SECRET:-your-256-bit-secret-key-change-this-in-production-minimum-32-characters-long}
+      SHOW_SQL: "false"  # Disable SQL logging in production
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - drl-net
+
+  student-service:
+    build:
+      context: ../backend/student-service
+      dockerfile: Dockerfile
+    container_name: drl-student-service
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/drl
+      SPRING_DATASOURCE_USERNAME: drl
+      SPRING_DATASOURCE_PASSWORD: drl
+      SHOW_SQL: "false"  # Disable SQL logging in production
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - drl-net
+
+  evaluation-service:
+    build:
+      context: ../backend/evaluation-service
+      dockerfile: Dockerfile
+    container_name: drl-evaluation-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/drl
+      SPRING_DATASOURCE_USERNAME: drl
+      SPRING_DATASOURCE_PASSWORD: drl
+      SHOW_SQL: "false"  # Disable SQL logging in production
+      FILE_UPLOAD_DIR: /app/uploads/evidence  # File upload directory in container
+      FILE_MAX_SIZE: 52428800  # 50MB
+    volumes:
+      - evidence-uploads:/app/uploads  # Persist uploaded files
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s  # Evaluation service takes longer to start (Flyway migrations)
+    restart: unless-stopped
+    networks:
+      - drl-net
+
+  gateway:
+    build:
+      context: ../backend/gateway
+      dockerfile: Dockerfile
+    container_name: drl-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      eureka-server:
+        condition: service_started
+      auth-service:
+        condition: service_healthy
+      student-service:
+        condition: service_healthy
+      evaluation-service:
+        condition: service_healthy
+    environment:
+      JWT_SECRET: ${JWT_SECRET:-your-256-bit-secret-key-change-this-in-production-minimum-32-characters-long}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - drl-net
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        # Use localhost for browser access, gateway for server-side
+        NEXT_PUBLIC_API_BASE: "http://localhost:8080/api"
+    container_name: drl-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+    networks:
+      - drl-net
+
+volumes:
+  dbdata:
+  evidence-uploads:  # Volume for evidence file uploads
+
+networks:
+  drl-net:
+    driver: bridge
