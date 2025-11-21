@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Users, Search, Loader2, Eye } from 'lucide-react';
-import { getStudents, getStudentByCode, type Student } from '@/lib/student';
+import { getStudents, getStudentByCode, getFaculties, getMajors, getClasses, type Student, type Faculty, type Major, type Class } from '@/lib/student';
 import { useToast } from '@/hooks/use-toast';
 import {
   Table,
@@ -36,9 +36,17 @@ export default function StudentsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const [search, setSearch] = useState('');
-  const [facultyCode, setFacultyCode] = useState<string>('');
-  const [majorCode, setMajorCode] = useState<string>('');
-  const [classCode, setClassCode] = useState<string>('');
+  const [facultyCode, setFacultyCode] = useState<string>('all');
+  const [majorCode, setMajorCode] = useState<string>('all');
+  const [classCode, setClassCode] = useState<string>('all');
+  
+  // Dropdown data
+  const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [majors, setMajors] = useState<Major[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loadingFaculties, setLoadingFaculties] = useState(false);
+  const [loadingMajors, setLoadingMajors] = useState(false);
+  const [loadingClasses, setLoadingClasses] = useState(false);
 
   const loadStudents = async () => {
     setLoading(true);
@@ -46,9 +54,9 @@ export default function StudentsPage() {
       const response = await getStudents({
         page,
         size,
-        facultyCode: facultyCode || undefined,
-        majorCode: majorCode || undefined,
-        classCode: classCode || undefined,
+        facultyCode: facultyCode && facultyCode !== 'all' ? facultyCode : undefined,
+        majorCode: majorCode && majorCode !== 'all' ? majorCode : undefined,
+        classCode: classCode && classCode !== 'all' ? classCode : undefined,
       });
       
       if (response.success && response.data) {
@@ -81,6 +89,116 @@ export default function StudentsPage() {
       setLoading(false);
     }
   };
+
+  // Load faculties on mount
+  useEffect(() => {
+    const loadFaculties = async () => {
+      setLoadingFaculties(true);
+      try {
+        const response = await getFaculties();
+        console.log('Faculties response:', response);
+        if (response.success && response.data) {
+          console.log('Faculties loaded:', response.data);
+          setFaculties(response.data);
+        } else {
+          console.warn('Faculties response not successful:', response);
+        }
+      } catch (error: any) {
+        console.error('Error loading faculties:', error);
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải danh sách khoa.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingFaculties(false);
+      }
+    };
+    loadFaculties();
+  }, []);
+
+  // Load majors when facultyCode changes
+  useEffect(() => {
+    const loadMajors = async () => {
+      if (facultyCode === 'all') {
+        setMajors([]);
+        setMajorCode('all');
+        return;
+      }
+      
+      setLoadingMajors(true);
+      try {
+        const response = await getMajors(facultyCode);
+        console.log('Majors response:', response);
+        if (response.success && response.data) {
+          console.log('Majors loaded:', response.data);
+          setMajors(response.data);
+        } else {
+          console.warn('Majors response not successful:', response);
+        }
+      } catch (error: any) {
+        console.error('Error loading majors:', error);
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải danh sách ngành.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingMajors(false);
+      }
+    };
+    loadMajors();
+  }, [facultyCode]);
+
+  // Load classes when facultyCode or majorCode changes
+  useEffect(() => {
+    const loadClasses = async () => {
+      if (facultyCode === 'all') {
+        setClasses([]);
+        setClassCode('all');
+        return;
+      }
+      
+      setLoadingClasses(true);
+      try {
+        const response = await getClasses(
+          facultyCode !== 'all' ? facultyCode : undefined,
+          majorCode !== 'all' ? majorCode : undefined
+        );
+        console.log('Classes response:', response);
+        if (response.success && response.data) {
+          console.log('Classes loaded:', response.data);
+          setClasses(response.data);
+        } else {
+          console.warn('Classes response not successful:', response);
+        }
+      } catch (error: any) {
+        console.error('Error loading classes:', error);
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải danh sách lớp.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingClasses(false);
+      }
+    };
+    loadClasses();
+  }, [facultyCode, majorCode]);
+
+  // Reset dependent dropdowns when parent changes
+  useEffect(() => {
+    if (facultyCode === 'all') {
+      setMajorCode('all');
+      setClassCode('all');
+    }
+  }, [facultyCode]);
+
+  useEffect(() => {
+    if (majorCode === 'all') {
+      setClassCode('all');
+    }
+  }, [majorCode]);
 
   useEffect(() => {
     loadStudents();
@@ -118,7 +236,7 @@ export default function StudentsPage() {
               <CardTitle>Tìm kiếm và Lọc</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
                 <div className="lg:col-span-2">
                   <Input
                     placeholder="Tìm kiếm theo mã SV, tên, lớp, ngành, khoa..."
@@ -127,15 +245,75 @@ export default function StudentsPage() {
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
                 </div>
-                <Select value={facultyCode} onValueChange={setFacultyCode}>
+                <Select 
+                  value={facultyCode} 
+                  onValueChange={(value) => {
+                    setFacultyCode(value);
+                    setMajorCode('all');
+                    setClassCode('all');
+                  }}
+                  disabled={loadingFaculties}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Tất cả Khoa" />
+                    <SelectValue placeholder={loadingFaculties ? "Đang tải..." : "Tất cả Khoa"} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tất cả Khoa</SelectItem>
-                    {/* TODO: Load from API */}
+                    <SelectItem value="all">Tất cả Khoa</SelectItem>
+                    {faculties.length === 0 && !loadingFaculties && (
+                      <SelectItem value="no-data" disabled>Không có dữ liệu</SelectItem>
+                    )}
+                    {faculties.map((faculty) => (
+                      <SelectItem key={faculty.code} value={faculty.code}>
+                        {faculty.name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <Select 
+                  value={majorCode} 
+                  onValueChange={(value) => {
+                    setMajorCode(value);
+                    setClassCode('all');
+                  }}
+                  disabled={facultyCode === 'all' || loadingMajors}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingMajors ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Ngành"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả Ngành</SelectItem>
+                    {majors.length === 0 && !loadingMajors && facultyCode !== 'all' && (
+                      <SelectItem value="no-data" disabled>Không có dữ liệu</SelectItem>
+                    )}
+                    {majors.map((major) => (
+                      <SelectItem key={major.code} value={major.code}>
+                        {major.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select 
+                  value={classCode} 
+                  onValueChange={setClassCode}
+                  disabled={facultyCode === 'all' || loadingClasses}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={loadingClasses ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Lớp"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả Lớp</SelectItem>
+                    {classes.length === 0 && !loadingClasses && facultyCode !== 'all' && (
+                      <SelectItem value="no-data" disabled>Không có dữ liệu</SelectItem>
+                    )}
+                    {classes.map((cls) => (
+                      <SelectItem key={cls.code} value={cls.code}>
+                        {cls.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="mt-4 flex justify-end">
                 <Button onClick={handleSearch}>
                   <Search className="mr-2 h-4 w-4" />
                   Tìm kiếm

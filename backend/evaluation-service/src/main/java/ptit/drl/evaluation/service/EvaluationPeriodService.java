@@ -66,6 +66,14 @@ public class EvaluationPeriodService {
     }
     
     /**
+     * Get all periods (both active and inactive)
+     */
+    @Transactional(readOnly = true)
+    public List<EvaluationPeriod> getAllPeriods() {
+        return periodRepository.findAll();
+    }
+    
+    /**
      * Get period by ID
      */
     @Transactional(readOnly = true)

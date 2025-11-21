@@ -13,6 +13,35 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 
+/**
+ * Convert date value (string or array) to Date object
+ * Handles LocalDateTime array format: [year, month, day, hour, minute, second, nanosecond]
+ */
+function parseDate(dateValue: string | number[] | undefined): Date | null {
+  if (!dateValue) return null;
+  
+  try {
+    let date: Date;
+    if (Array.isArray(dateValue)) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = dateValue;
+      date = new Date(year, month - 1, day, hour, minute, second);
+    } else if (typeof dateValue === 'string') {
+      date = new Date(dateValue);
+    } else {
+      date = new Date(dateValue);
+    }
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return null;
+    }
+    
+    return date;
+  } catch (error) {
+    return null;
+  }
+}
+
 export default function ProfilePage() {
   const { user, isLoading } = useAuth();
 
@@ -133,27 +162,35 @@ export default function ProfilePage() {
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Trạng thái</label>
                   <div className="mt-1">
-                    <Badge variant={user.enabled ? "default" : "secondary"}>
-                      {user.enabled ? "Hoạt động" : "Vô hiệu hóa"}
+                    <Badge variant={(user.isActive ?? user.enabled ?? true) ? "default" : "secondary"}>
+                      {(user.isActive ?? user.enabled ?? true) ? "Hoạt động" : "Vô hiệu hóa"}
                     </Badge>
                   </div>
                 </div>
-                {user.createdAt && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Ngày tạo</label>
-                    <p className="text-sm font-medium mt-1">
-                      {format(new Date(user.createdAt), "dd/MM/yyyy 'lúc' HH:mm", { locale: vi })}
-                    </p>
-                  </div>
-                )}
-                {user.updatedAt && (
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Cập nhật lần cuối</label>
-                    <p className="text-sm font-medium mt-1">
-                      {format(new Date(user.updatedAt), "dd/MM/yyyy 'lúc' HH:mm", { locale: vi })}
-                    </p>
-                  </div>
-                )}
+                {(() => {
+                  const createdDate = parseDate(user.createdAt);
+                  if (!createdDate) return null;
+                  return (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Ngày tạo</label>
+                      <p className="text-sm font-medium mt-1">
+                        {format(createdDate, "dd/MM/yyyy 'lúc' HH:mm", { locale: vi })}
+                      </p>
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const updatedDate = parseDate(user.updatedAt);
+                  if (!updatedDate) return null;
+                  return (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Cập nhật lần cuối</label>
+                      <p className="text-sm font-medium mt-1">
+                        {format(updatedDate, "dd/MM/yyyy 'lúc' HH:mm", { locale: vi })}
+                      </p>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

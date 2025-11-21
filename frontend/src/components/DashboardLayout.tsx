@@ -15,7 +15,8 @@ import {
   LogOut,
   CheckSquare,
   Calendar,
-  User
+  User,
+  FileText
 } from 'lucide-react';
 import { NotificationBell } from '@/components/NotificationBell';
 
@@ -52,6 +53,12 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                 <LayoutDashboard className="inline h-4 w-4 mr-1" />
                 Dashboard
               </Link>
+              {user?.studentCode && (
+                <Link href="/evaluations/my" className="text-sm font-medium hover:text-primary transition-colors">
+                  <FileText className="inline h-4 w-4 mr-1" />
+                  My Evaluations
+                </Link>
+              )}
               <Link href="/evaluations/new" className="text-sm font-medium hover:text-primary transition-colors">
                 <ClipboardList className="inline h-4 w-4 mr-1" />
                 New Evaluation

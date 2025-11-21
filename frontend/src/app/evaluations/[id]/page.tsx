@@ -328,7 +328,7 @@ export default function EvaluationDetailPage() {
     (canEditInPeriod && (evaluation.status === 'SUBMITTED' || evaluation.status === 'CLASS_APPROVED' || evaluation.status === 'FACULTY_APPROVED'))
   );
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080';
+  const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080/api';
 
   return (
     <ProtectedRoute>
@@ -341,7 +341,51 @@ export default function EvaluationDetailPage() {
                 {evaluation.semester} - {evaluation.academicYear || 'Năm học chưa xác định'}
               </p>
             </div>
-            <StatusBadge status={evaluation.status} />
+            <div className="flex flex-col items-end gap-2">
+              <StatusBadge status={evaluation.status} />
+              <div className="flex items-center gap-2">
+                {(canEdit || (evaluation.status === 'REJECTED') || (canEditInPeriod && (evaluation.status === 'SUBMITTED' || evaluation.status === 'CLASS_APPROVED' || evaluation.status === 'FACULTY_APPROVED'))) && (
+                  <Button variant="outline" size="sm" onClick={() => router.push(`/evaluations/${evaluation.id}/edit`)}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    {evaluation.status === 'REJECTED' ? 'Chỉnh sửa & Nộp lại' : 'Chỉnh sửa'}
+                  </Button>
+                )}
+                {canDelete && (
+                  <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" size="sm" disabled={submitting}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Xóa
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Xác nhận xóa đánh giá</DialogTitle>
+                        <DialogDescription>
+                          Bạn có chắc chắn muốn xóa đánh giá này? Hành động này không thể hoàn tác.
+                          Tất cả dữ liệu liên quan (điểm, bằng chứng, lịch sử) sẽ bị xóa vĩnh viễn.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                          Hủy
+                        </Button>
+                        <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
+                          {submitting ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Đang xóa...
+                            </>
+                          ) : (
+                            'Xóa'
+                          )}
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </div>
           </div>
 
           <Card>
@@ -536,51 +580,11 @@ export default function EvaluationDetailPage() {
                   </>
                 ) : (
                   <>
-                    <Send className="mr-2 h-4 w-4" />
-                    Nộp để Duyệt
+                    Nộp
+                    <Send className="ml-2 h-4 w-4" />
                   </>
                 )}
               </Button>
-            )}
-            {(canEdit || (evaluation.status === 'REJECTED') || (canEditInPeriod && (evaluation.status === 'SUBMITTED' || evaluation.status === 'CLASS_APPROVED' || evaluation.status === 'FACULTY_APPROVED'))) && (
-              <Button variant="outline" onClick={() => router.push(`/evaluations/${evaluation.id}/edit`)}>
-                <Edit className="mr-2 h-4 w-4" />
-                {evaluation.status === 'REJECTED' ? 'Chỉnh sửa & Nộp lại' : 'Chỉnh sửa'}
-              </Button>
-            )}
-            {canDelete && (
-              <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="destructive" disabled={submitting}>
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Xóa
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Xác nhận xóa đánh giá</DialogTitle>
-                    <DialogDescription>
-                      Bạn có chắc chắn muốn xóa đánh giá này? Hành động này không thể hoàn tác.
-                      Tất cả dữ liệu liên quan (điểm, bằng chứng, lịch sử) sẽ bị xóa vĩnh viễn.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
-                      Hủy
-                    </Button>
-                    <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
-                      {submitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Đang xóa...
-                        </>
-                      ) : (
-                        'Xóa'
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
             )}
             {canApprove && (
               <>

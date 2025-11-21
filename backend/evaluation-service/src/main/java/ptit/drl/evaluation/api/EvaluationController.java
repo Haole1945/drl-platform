@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import ptit.drl.evaluation.dto.*;
 import ptit.drl.evaluation.service.EvaluationService;
@@ -64,8 +65,10 @@ public class EvaluationController {
     
     /**
      * POST /evaluations - Create new evaluation (DRAFT)
+     * Only students, class monitors, and union representatives can create evaluations
      */
     @PostMapping
+    @PreAuthorize("hasRole('STUDENT') or hasRole('CLASS_MONITOR') or hasRole('UNION_REPRESENTATIVE')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> createEvaluation(
             @Valid @RequestBody CreateEvaluationRequest request) {
         EvaluationDTO evaluation = evaluationService.createEvaluation(request);

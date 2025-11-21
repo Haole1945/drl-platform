@@ -112,8 +112,12 @@ public class FileController {
             EvidenceFile file = fileService.getFileByStoredFileName(filename);
             
             // Verify the file belongs to the specified evaluation and criteria
-            if (!file.getEvaluationId().equals(evaluationId) || 
-                !file.getCriteriaId().equals(criteriaId)) {
+            // Handle case where evaluationId might be 0 (placeholder) or null in DB
+            Long fileEvaluationId = file.getEvaluationId();
+            boolean evaluationMatches = (fileEvaluationId == null && evaluationId == 0) ||
+                                       (fileEvaluationId != null && fileEvaluationId.equals(evaluationId));
+            
+            if (!evaluationMatches || !file.getCriteriaId().equals(criteriaId)) {
                 return ResponseEntity.notFound().build();
             }
             

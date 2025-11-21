@@ -139,10 +139,9 @@ public class DataSeeder implements CommandLineRunner {
         System.out.println("Seeding evaluation periods...");
         
         // Create a sample evaluation period for current semester
-        // Start from today, end in 30 days
-        LocalDate today = LocalDate.now();
-        LocalDate startDate = today;
-        LocalDate endDate = today.plusDays(30);
+        // Fixed dates: 20/11/2025 - 20/12/2025
+        LocalDate startDate = LocalDate.of(2025, 11, 20);
+        LocalDate endDate = LocalDate.of(2025, 12, 20);
         
         EvaluationPeriod period = new EvaluationPeriod();
         period.setName("Đợt 1 - Học kỳ 1 năm học 2024-2025");

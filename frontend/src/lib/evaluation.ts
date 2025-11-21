@@ -156,3 +156,122 @@ export async function deleteEvaluation(id: number): Promise<ApiResponse<void>> {
   return apiClient.delete(`/evaluations/${id}`);
 }
 
+// ========== Rubric Management ==========
+
+/**
+ * Get all rubrics
+ */
+export async function getAllRubrics(): Promise<ApiResponse<Rubric[]>> {
+  return apiClient.get<Rubric[]>('/rubrics');
+}
+
+/**
+ * Create new rubric
+ */
+export async function createRubric(data: {
+  name: string;
+  description?: string;
+  maxScore: number;
+  academicYear: string;
+}): Promise<ApiResponse<Rubric>> {
+  const params = new URLSearchParams();
+  params.append('name', data.name);
+  if (data.description) params.append('description', data.description);
+  params.append('maxScore', data.maxScore.toString());
+  params.append('academicYear', data.academicYear);
+  
+  return apiClient.post<Rubric>(`/rubrics?${params.toString()}`, {});
+}
+
+/**
+ * Update rubric
+ */
+export async function updateRubric(
+  id: number,
+  data: {
+    name?: string;
+    description?: string;
+    maxScore?: number;
+    academicYear?: string;
+  }
+): Promise<ApiResponse<Rubric>> {
+  const params = new URLSearchParams();
+  if (data.name) params.append('name', data.name);
+  if (data.description) params.append('description', data.description);
+  if (data.maxScore !== undefined) params.append('maxScore', data.maxScore.toString());
+  if (data.academicYear) params.append('academicYear', data.academicYear);
+  
+  return apiClient.put<Rubric>(`/rubrics/${id}?${params.toString()}`, {});
+}
+
+/**
+ * Activate rubric
+ */
+export async function activateRubric(id: number): Promise<ApiResponse<Rubric>> {
+  return apiClient.post<Rubric>(`/rubrics/${id}/activate`, {});
+}
+
+/**
+ * Deactivate rubric
+ */
+export async function deactivateRubric(id: number): Promise<ApiResponse<Rubric>> {
+  return apiClient.post<Rubric>(`/rubrics/${id}/deactivate`, {});
+}
+
+// ========== Criteria Management ==========
+
+/**
+ * Get criteria by ID
+ */
+export async function getCriteriaById(id: number): Promise<ApiResponse<Criteria>> {
+  return apiClient.get<Criteria>(`/criteria/${id}`);
+}
+
+/**
+ * Create new criteria
+ */
+export async function createCriteria(data: {
+  name: string;
+  description?: string;
+  maxPoints: number;
+  orderIndex: number;
+  rubricId: number;
+}): Promise<ApiResponse<Criteria>> {
+  const params = new URLSearchParams();
+  params.append('name', data.name);
+  if (data.description) params.append('description', data.description);
+  params.append('maxScore', data.maxPoints.toString());
+  params.append('orderIndex', data.orderIndex.toString());
+  params.append('rubricId', data.rubricId.toString());
+  
+  return apiClient.post<Criteria>(`/criteria?${params.toString()}`, {});
+}
+
+/**
+ * Update criteria
+ */
+export async function updateCriteria(
+  id: number,
+  data: {
+    name?: string;
+    description?: string;
+    maxPoints?: number;
+    orderIndex?: number;
+  }
+): Promise<ApiResponse<Criteria>> {
+  const params = new URLSearchParams();
+  if (data.name) params.append('name', data.name);
+  if (data.description) params.append('description', data.description);
+  if (data.maxPoints !== undefined) params.append('maxScore', data.maxPoints.toString());
+  if (data.orderIndex !== undefined) params.append('orderIndex', data.orderIndex.toString());
+  
+  return apiClient.put<Criteria>(`/criteria/${id}?${params.toString()}`, {});
+}
+
+/**
+ * Delete criteria
+ */
+export async function deleteCriteria(id: number): Promise<ApiResponse<void>> {
+  return apiClient.delete(`/criteria/${id}`);
+}
+

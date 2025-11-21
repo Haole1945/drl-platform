@@ -90,14 +90,14 @@ export function canFinalizeEvaluation(user: User | null): boolean {
 }
 
 /**
- * Check if user can create evaluations (students)
+ * Check if user can create evaluations (students only)
+ * Only students, class monitors, and union representatives can create evaluations
  */
 export function canCreateEvaluation(user: User | null): boolean {
   return hasAnyRole(user, [
     'STUDENT',
     'CLASS_MONITOR',
-    'UNION_REPRESENTATIVE',
-    'ADMIN'
+    'UNION_REPRESENTATIVE'
   ]);
 }
 

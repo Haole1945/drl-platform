@@ -109,8 +109,8 @@ export default function EvaluationPeriodsPage() {
       name: period.name,
       semester: period.semester,
       academicYear: period.academicYear,
-      startDate: period.startDate.split('T')[0], // Format date for input
-      endDate: period.endDate.split('T')[0],
+      startDate: parseDate(period.startDate as any), // Parse date (can be string or array)
+      endDate: parseDate(period.endDate as any),
       description: period.description || '',
       isActive: period.isActive,
     });
@@ -240,8 +240,43 @@ export default function EvaluationPeriodsPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('vi-VN', {
+  // Helper function to parse date from backend (can be string or array)
+  const parseDate = (date: string | number[] | undefined): string => {
+    if (!date) return '';
+    
+    // If it's already a string (ISO format)
+    if (typeof date === 'string') {
+      return date.split('T')[0];
+    }
+    
+    // If it's an array from LocalDate [year, month, day]
+    if (Array.isArray(date) && date.length >= 3) {
+      const year = date[0];
+      const month = String(date[1]).padStart(2, '0');
+      const day = String(date[2]).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    
+    return '';
+  };
+
+  const formatDate = (date: string | number[] | undefined) => {
+    if (!date) return 'N/A';
+    
+    let dateObj: Date;
+    
+    // If it's already a string (ISO format)
+    if (typeof date === 'string') {
+      dateObj = new Date(date);
+    } 
+    // If it's an array from LocalDate [year, month, day]
+    else if (Array.isArray(date) && date.length >= 3) {
+      dateObj = new Date(date[0], date[1] - 1, date[2]); // month is 0-indexed in JS Date
+    } else {
+      return 'N/A';
+    }
+    
+    return dateObj.toLocaleDateString('vi-VN', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

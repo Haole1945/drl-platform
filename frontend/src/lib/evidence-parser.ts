@@ -36,12 +36,18 @@ function parseScores(evidence: string): Record<string, number> {
 export function parseEvidence(evidence: string): ParsedEvidence[] {
   if (!evidence) return [];
 
+  // Remove "Evidence: " prefix if present (legacy format or old data)
+  let cleanEvidence = evidence;
+  if (cleanEvidence.startsWith('Evidence: ')) {
+    cleanEvidence = cleanEvidence.substring('Evidence: '.length);
+  }
+
   // Parse scores first
-  const scores = parseScores(evidence);
+  const scores = parseScores(cleanEvidence);
   
   // Extract evidence part (after EVIDENCE: or legacy format)
-  let evidencePart = evidence;
-  const evidenceMatch = evidence.match(/EVIDENCE:(.+)/);
+  let evidencePart = cleanEvidence;
+  const evidenceMatch = cleanEvidence.match(/EVIDENCE:(.+)/s); // Add 's' flag to match newlines
   if (evidenceMatch) {
     evidencePart = evidenceMatch[1];
   }
@@ -50,15 +56,17 @@ export function parseEvidence(evidence: string): ParsedEvidence[] {
   
   // Split by sub-criteria pattern (e.g., "1.1.", "1.2.")
   // Pattern: "1.1. Name: /files/evidence/... /files/evidence/..."
-  const subCriteriaPattern = /(\d+\.\d+)\.\s*([^:]+):\s*(.+?)(?=\d+\.\d+\.|$)/g;
+  // Handle newlines between sub-criteria entries
+  // Match: "1.1. Name: files..." until next "1.2." or end
+  const subCriteriaPattern = /(\d+\.\d+)\.\s*([^:\n]+):\s*([\s\S]*?)(?=\d+\.\d+\.|$)/g;
   
   let match;
   while ((match = subCriteriaPattern.exec(evidencePart)) !== null) {
     const [, subId, name, filesText] = match;
     
     // Extract file URLs from the files text
-    // URLs pattern: /files/evidence/...
-    const urlPattern = /\/files\/evidence\/[^\s,]+/g;
+    // URLs pattern: /files/evidence/... (can span multiple lines, separated by spaces, commas, or newlines)
+    const urlPattern = /\/files\/evidence\/[^\s,\n]+/g;
     const fileUrls: string[] = [];
     let urlMatch;
     while ((urlMatch = urlPattern.exec(filesText)) !== null) {

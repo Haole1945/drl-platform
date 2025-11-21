@@ -32,6 +32,30 @@ export interface StudentListResponse {
   size: number;
 }
 
+export interface Faculty {
+  code: string;
+  name: string;
+  description?: string;
+}
+
+export interface Major {
+  code: string;
+  name: string;
+  description?: string;
+  facultyCode: string;
+  facultyName: string;
+}
+
+export interface Class {
+  code: string;
+  name: string;
+  academicYear: string;
+  facultyCode: string;
+  facultyName: string;
+  majorCode?: string;
+  majorName?: string;
+}
+
 /**
  * Get all students with pagination and filters
  */
@@ -83,5 +107,39 @@ export async function updateStudent(
  */
 export async function deleteStudent(studentCode: string): Promise<ApiResponse<void>> {
   return apiClient.delete(`/students/${studentCode}`);
+}
+
+/**
+ * Get all faculties
+ */
+export async function getFaculties(): Promise<ApiResponse<Faculty[]>> {
+  console.log('[DEBUG] getFaculties: Calling /students/faculties');
+  try {
+    const response = await apiClient.get<Faculty[]>('/students/faculties');
+    console.log('[DEBUG] getFaculties: Response received', response);
+    return response;
+  } catch (error) {
+    console.error('[DEBUG] getFaculties: Error occurred', error);
+    throw error;
+  }
+}
+
+/**
+ * Get majors by faculty code (optional)
+ */
+export async function getMajors(facultyCode?: string): Promise<ApiResponse<Major[]>> {
+  const query = facultyCode ? `?facultyCode=${facultyCode}` : '';
+  return apiClient.get<Major[]>(`/students/majors${query}`);
+}
+
+/**
+ * Get classes by faculty code and optionally by major code
+ */
+export async function getClasses(facultyCode?: string, majorCode?: string): Promise<ApiResponse<Class[]>> {
+  const params = new URLSearchParams();
+  if (facultyCode) params.append('facultyCode', facultyCode);
+  if (majorCode) params.append('majorCode', majorCode);
+  const query = params.toString();
+  return apiClient.get<Class[]>(`/students/classes${query ? `?${query}` : ''}`);
 }
 

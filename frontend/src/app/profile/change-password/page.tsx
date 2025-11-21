@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { changePassword } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import { Key, Loader2, Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 
@@ -23,6 +24,7 @@ export default function ChangePasswordPage() {
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const { logout } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -75,16 +77,15 @@ export default function ChangePasswordPage() {
       if (response.success) {
         toast({
           title: "Thành công",
-          description: "Mật khẩu đã được thay đổi thành công.",
+          description: "Mật khẩu đã được thay đổi thành công. Vui lòng đăng nhập lại.",
         });
-        // Reset form
-        setCurrentPassword('');
-        setNewPassword('');
-        setConfirmPassword('');
-        // Redirect to profile after 1 second
-        setTimeout(() => {
-          router.push('/profile');
-        }, 1000);
+        
+        // Logout user after password change for security
+        // Wait a bit to show the success message
+        setTimeout(async () => {
+          await logout();
+          router.push('/login?message=password-changed');
+        }, 1500);
       }
     } catch (error: any) {
       toast({

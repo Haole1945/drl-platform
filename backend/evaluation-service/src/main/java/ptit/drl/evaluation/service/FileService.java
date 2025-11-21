@@ -79,8 +79,9 @@ public class FileService {
         String extension = getFileExtension(originalFilename);
         String storedFileName = UUID.randomUUID().toString() + extension;
         
-        // Create directory structure: uploads/evidence/{evaluationId or 'temp'}/{criteriaId}/
-        String evalDirName = evaluationId != null ? String.valueOf(evaluationId) : "temp";
+        // Create directory structure: uploads/evidence/{evaluationId or '0'}/{criteriaId}/
+        // Use '0' as placeholder for null evaluationId to match URL structure
+        String evalDirName = evaluationId != null ? String.valueOf(evaluationId) : "0";
         Path evaluationDir = Paths.get(uploadDir, evalDirName, String.valueOf(criteriaId));
         Files.createDirectories(evaluationDir);
         

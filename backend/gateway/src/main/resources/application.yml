@@ -49,6 +49,14 @@ spring:
             - Path=/api/evaluations/**,/api/rubrics/**,/api/criteria/**,/api/files/**,/api/evaluation-periods/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
+        
+        # Notifications Route (separate route for better path matching)
+        - id: notifications-service
+          uri: lb://evaluation-service
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
 
 # JWT Configuration (must match auth-service)
 jwt:

@@ -2,6 +2,9 @@ package ptit.drl.auth.service;
 
 import feign.FeignException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,7 +20,10 @@ import ptit.drl.auth.repository.RoleRepository;
 import ptit.drl.auth.util.JwtTokenProvider;
 import ptit.drl.auth.client.StudentServiceClient;
 
+import jakarta.persistence.criteria.Predicate;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -355,6 +361,17 @@ public class AuthService {
      * Get all active user IDs (for sending notifications)
      */
     @Transactional(readOnly = true)
+    /**
+     * Get user ID by student code
+     * Used by evaluation-service to send notifications
+     */
+    @Transactional(readOnly = true)
+    public Long getUserIdByStudentCode(String studentCode) {
+        User user = userRepository.findByStudentCode(studentCode)
+                .orElse(null);
+        return user != null ? user.getId() : null;
+    }
+    
     public java.util.List<Long> getAllActiveUserIds() {
         return userRepository.findAll().stream()
                 .filter(User::getIsActive)
@@ -377,6 +394,107 @@ public class AuthService {
         // Update password
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
+    }
+    
+    /**
+     * Get all users with pagination and filters
+     */
+    @Transactional(readOnly = true)
+    public Page<UserDTO> getAllUsers(Pageable pageable, String search, String role, Boolean isActive) {
+        Specification<User> spec = (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            
+            // Search filter (username, email, studentCode, fullName)
+            if (search != null && !search.trim().isEmpty()) {
+                String searchPattern = "%" + search.trim().toLowerCase() + "%";
+                Predicate usernamePred = cb.like(cb.lower(root.get("username")), searchPattern);
+                Predicate emailPred = cb.like(cb.lower(root.get("email")), searchPattern);
+                Predicate studentCodePred = cb.like(cb.lower(root.get("studentCode")), searchPattern);
+                Predicate fullNamePred = cb.like(cb.lower(root.get("fullName")), searchPattern);
+                predicates.add(cb.or(usernamePred, emailPred, studentCodePred, fullNamePred));
+            }
+            
+            // Role filter
+            if (role != null && !role.trim().isEmpty()) {
+                predicates.add(cb.equal(root.join("roles").get("name"), role));
+            }
+            
+            // Active filter
+            if (isActive != null) {
+                predicates.add(cb.equal(root.get("isActive"), isActive));
+            }
+            
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
+        
+        return userRepository.findAll(spec, pageable)
+                .map(UserMapper::toDTO);
+    }
+    
+    /**
+     * Get user by ID
+     */
+    @Transactional(readOnly = true)
+    public UserDTO getUserById(Long id) {
+        User user = userRepository.findByIdWithRoles(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        return UserMapper.toDTO(user);
+    }
+    
+    /**
+     * Activate user
+     */
+    public UserDTO activateUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        user.setIsActive(true);
+        User saved = userRepository.save(user);
+        return UserMapper.toDTO(saved);
+    }
+    
+    /**
+     * Deactivate user
+     */
+    public UserDTO deactivateUser(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        user.setIsActive(false);
+        User saved = userRepository.save(user);
+        return UserMapper.toDTO(saved);
+    }
+    
+    /**
+     * Update user roles
+     */
+    public UserDTO updateUserRoles(Long id, List<String> roleNames) {
+        User user = userRepository.findByIdWithRoles(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        
+        // Clear existing roles
+        user.getRoles().clear();
+        
+        // Add new roles
+        if (roleNames != null && !roleNames.isEmpty()) {
+            for (String roleName : roleNames) {
+                Role role = roleRepository.findById(roleName)
+                        .orElseThrow(() -> new ResourceNotFoundException("Role", "name", roleName));
+                user.addRole(role);
+            }
+        }
+        
+        User saved = userRepository.save(user);
+        return UserMapper.toDTO(saved);
+    }
+    
+    /**
+     * Get all available role names
+     */
+    @Transactional(readOnly = true)
+    public List<String> getAllRoleNames() {
+        return roleRepository.findAll().stream()
+                .map(Role::getName)
+                .sorted()
+                .collect(Collectors.toList());
     }
 }
 

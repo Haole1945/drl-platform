@@ -114,6 +114,20 @@ public class AuthController {
     }
     
     /**
+     * GET /auth/users/student/{studentCode} - Get user ID by student code
+     * Internal use only - for evaluation-service to send notifications
+     */
+    @GetMapping("/users/student/{studentCode}")
+    public ResponseEntity<ApiResponse<Long>> getUserIdByStudentCode(@PathVariable String studentCode) {
+        Long userId = authService.getUserIdByStudentCode(studentCode);
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(ApiResponse.error("User not found for student code: " + studentCode));
+        }
+        return ResponseEntity.ok(ApiResponse.success("User ID retrieved", userId));
+    }
+    
+    /**
      * POST /auth/change-password - Change user password
      */
     @PostMapping("/change-password")

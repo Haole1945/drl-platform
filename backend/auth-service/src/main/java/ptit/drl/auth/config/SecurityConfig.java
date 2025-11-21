@@ -30,8 +30,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // Public endpoints (no authentication required)
                 .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/logout", "/auth/request-password").permitAll()
-                // /auth/me requires token but we validate it in controller, so permit all here
-                .requestMatchers("/auth/me").permitAll()
+                // /auth/me and /auth/change-password require token but we validate it in controller, so permit all here
+                .requestMatchers("/auth/me", "/auth/change-password").permitAll()
                 // Actuator endpoints
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // Swagger/OpenAPI endpoints

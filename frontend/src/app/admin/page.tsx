@@ -79,10 +79,12 @@ export default function AdminPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full" disabled>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Đang phát triển
-                </Button>
+                <Link href="/admin/system-config">
+                  <Button variant="outline" className="w-full">
+                    <Settings className="mr-2 h-4 w-4" />
+                    Cấu hình Hệ thống
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -94,10 +96,12 @@ export default function AdminPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full" disabled>
-                  <Users className="mr-2 h-4 w-4" />
-                  Đang phát triển
-                </Button>
+                <Link href="/admin/users">
+                  <Button variant="outline" className="w-full">
+                    <Users className="mr-2 h-4 w-4" />
+                    Quản lý Người dùng
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
 
@@ -109,10 +113,12 @@ export default function AdminPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="outline" className="w-full" disabled>
-                  <Database className="mr-2 h-4 w-4" />
-                  Đang phát triển
-                </Button>
+                <Link href="/admin/reports">
+                  <Button variant="outline" className="w-full">
+                    <Database className="mr-2 h-4 w-4" />
+                    Báo cáo & Thống kê
+                  </Button>
+                </Link>
               </CardContent>
             </Card>
           </div>

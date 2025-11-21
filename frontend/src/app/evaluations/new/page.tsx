@@ -138,6 +138,13 @@ export default function NewEvaluationPage() {
     loadData();
   }, [user, router, toast]);
 
+  // Auto-fill semester from open period when available
+  useEffect(() => {
+    if (openPeriod?.semester && !semester) {
+      setSemester(openPeriod.semester);
+    }
+  }, [openPeriod, semester]);
+
   const handleSubCriteriaScoreChange = (criteriaId: number, subCriteriaId: string, score: number) => {
     // Only allow integers
     const intScore = Math.round(score);

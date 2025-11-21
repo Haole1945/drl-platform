@@ -49,6 +49,12 @@ public class EvaluationService {
     @Autowired
     private EvaluationPeriodService periodService;
     
+    @Autowired(required = false)
+    private NotificationService notificationService;
+    
+    @Autowired(required = false)
+    private ptit.drl.evaluation.client.AuthServiceClient authServiceClient;
+    
     /**
      * Create new evaluation (DRAFT status)
      * Validates student exists via student-service
@@ -238,7 +244,12 @@ public class EvaluationService {
     /**
      * Update evaluation (only in DRAFT status)
      */
+    @Transactional
     public EvaluationDTO updateEvaluation(Long id, UpdateEvaluationRequest request) {
+        System.out.println("=== DEBUG UPDATE: updateEvaluation() called ===");
+        System.out.println("Evaluation ID: " + id);
+        System.out.println("Request details count: " + (request.getDetails() != null ? request.getDetails().size() : 0));
+        
         // Use optimized query with fetch join
         Evaluation evaluation = evaluationRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Evaluation", "id", id));
@@ -249,33 +260,117 @@ public class EvaluationService {
                 evaluation.getStatus().name(), "UPDATE");
         }
         
-        // Clear existing details
-        evaluation.getDetails().clear();
+        // Log existing details before deleting
+        System.out.println("Existing details count before delete: " + evaluation.getDetails().size());
+        evaluation.getDetails().forEach(detail -> {
+            System.out.println("  - Detail: criteriaId=" + detail.getCriteriaId() + 
+                ", score=" + detail.getScore() + 
+                ", comment length=" + (detail.getComment() != null ? detail.getComment().length() : 0));
+        });
         
-        // Add new details
+        // Delete existing details properly to avoid orphanRemoval issues
+        // Create a copy of the list to avoid ConcurrentModificationException
+        List<EvaluationDetail> detailsToDelete = new ArrayList<>(evaluation.getDetails());
+        // Remove all from the collection (orphanRemoval will handle deletion)
+        evaluation.getDetails().removeAll(detailsToDelete);
+        evaluationRepository.flush(); // Flush to ensure old details are deleted
+        System.out.println("Deleted existing details, collection size now: " + evaluation.getDetails().size());
+        
+        // Create new details (exactly same logic as create)
+        List<EvaluationDetail> details = new ArrayList<>();
         double totalScore = 0.0;
         for (CreateEvaluationDetailRequest detailRequest : request.getDetails()) {
+            System.out.println("Processing detail request: criteriaId=" + detailRequest.getCriteriaId() + 
+                ", score=" + detailRequest.getScore());
+            System.out.println("  Evidence length: " + (detailRequest.getEvidence() != null ? detailRequest.getEvidence().length() : 0));
+            System.out.println("  Evidence preview: " + (detailRequest.getEvidence() != null && detailRequest.getEvidence().length() > 0 
+                ? detailRequest.getEvidence().substring(0, Math.min(200, detailRequest.getEvidence().length())) + "..." 
+                : "null"));
+            
             Criteria criteria = criteriaRepository.findById(detailRequest.getCriteriaId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                         "Criteria", "id", detailRequest.getCriteriaId()));
             
-            // Validate score
-            if (detailRequest.getScore() > criteria.getMaxPoints()) {
-                throw new IllegalArgumentException(
-                    String.format("Score %.2f exceeds max score %.2f for criteria %s",
-                        detailRequest.getScore(), criteria.getMaxPoints(), criteria.getName()));
+            // Get score (default to 0 if null - same as create)
+            Double score = detailRequest.getScore();
+            if (score == null) {
+                score = 0.0;
             }
             
+            // Validate score does not exceed maxPoints (same as create)
+            if (score > criteria.getMaxPoints()) {
+                throw new IllegalArgumentException(
+                    String.format("Score %.2f exceeds max score %.2f for criteria %s",
+                        score, criteria.getMaxPoints(), criteria.getName()));
+            }
+            
+            // Create detail with validated score (exactly same as create)
+            CreateEvaluationDetailRequest validatedDetail = new CreateEvaluationDetailRequest();
+            validatedDetail.setCriteriaId(detailRequest.getCriteriaId());
+            validatedDetail.setScore(score);
+            // Remove "Evidence: " prefix if frontend accidentally sends it
+            String evidence = detailRequest.getEvidence();
+            if (evidence != null && evidence.startsWith("Evidence: ")) {
+                evidence = evidence.substring("Evidence: ".length());
+                System.out.println("  Removed 'Evidence: ' prefix");
+            }
+            validatedDetail.setEvidence(evidence); // Evidence without prefix
+            validatedDetail.setNote(detailRequest.getNote());
+            
             EvaluationDetail detail = EvaluationMapper.toDetailEntity(
-                detailRequest, evaluation, criteria);
-            evaluation.getDetails().add(detail);
-            totalScore += detailRequest.getScore();
+                validatedDetail, evaluation, criteria);
+            
+            System.out.println("  Created detail entity: criteriaId=" + detail.getCriteriaId() + 
+                ", score=" + detail.getScore() + 
+                ", comment length=" + (detail.getComment() != null ? detail.getComment().length() : 0));
+            System.out.println("  Comment preview: " + (detail.getComment() != null && detail.getComment().length() > 0 
+                ? detail.getComment().substring(0, Math.min(200, detail.getComment().length())) + "..." 
+                : "null"));
+            
+            details.add(detail);
+            totalScore += score;
         }
         
+        // Add new details to the existing collection (don't use setDetails to avoid orphanRemoval issues)
+        // The collection is now empty after removeAll, so we can safely addAll
+        evaluation.getDetails().addAll(details);
         evaluation.setTotalPoints(totalScore);
         
-        Evaluation updated = evaluationRepository.save(evaluation);
-        return EvaluationMapper.toDTO(updated);
+        System.out.println("Added " + details.size() + " new details to collection. Total now: " + evaluation.getDetails().size());
+        
+        System.out.println("Saving evaluation with " + details.size() + " details, totalScore=" + totalScore);
+        
+        // Save (exactly same as create)
+        Evaluation saved = evaluationRepository.save(evaluation);
+        
+        System.out.println("Saved evaluation ID: " + saved.getId() + ". Reloading...");
+        
+        // Reload to ensure all details are properly loaded
+        Evaluation updated = evaluationRepository.findByIdWithRelations(saved.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Evaluation", "id", saved.getId()));
+        
+        System.out.println("Reloaded evaluation. Details count: " + updated.getDetails().size());
+        updated.getDetails().forEach(detail -> {
+            System.out.println("  - Reloaded detail: criteriaId=" + detail.getCriteriaId() + 
+                ", score=" + detail.getScore() + 
+                ", comment length=" + (detail.getComment() != null ? detail.getComment().length() : 0));
+            if (detail.getComment() != null && detail.getComment().length() > 0) {
+                System.out.println("    Comment preview: " + detail.getComment().substring(0, Math.min(200, detail.getComment().length())) + "...");
+            }
+        });
+        
+        EvaluationDTO result = EvaluationMapper.toDTO(updated);
+        
+        System.out.println("Response DTO details count: " + (result.getDetails() != null ? result.getDetails().size() : 0));
+        if (result.getDetails() != null) {
+            result.getDetails().forEach(detail -> {
+                System.out.println("  - Response detail: criteriaId=" + detail.getCriteriaId() + 
+                    ", evidence length=" + (detail.getEvidence() != null ? detail.getEvidence().length() : 0));
+            });
+        }
+        System.out.println("=== DEBUG UPDATE: updateEvaluation() completed ===");
+        
+        return result;
     }
     
     /**
@@ -390,6 +485,36 @@ public class EvaluationService {
         evaluationHistoryRepository.save(history);
         
         Evaluation updated = evaluationRepository.save(evaluation);
+        
+        // Create notification for student when evaluation is rejected
+        if (notificationService != null && authServiceClient != null) {
+            try {
+                ptit.drl.evaluation.client.AuthServiceClient.UserIdResponse response = 
+                    authServiceClient.getUserIdByStudentCode(evaluation.getStudentCode());
+                if (response != null && response.isSuccess() && response.getData() != null) {
+                    Long userId = response.getData();
+                    String title = "Đánh giá bị từ chối";
+                    String message = String.format(
+                        "Đánh giá điểm rèn luyện của bạn (Học kỳ: %s) đã bị từ chối. " +
+                        "Lý do: %s. Vui lòng chỉnh sửa và nộp lại.",
+                        evaluation.getSemester(),
+                        reason
+                    );
+                    notificationService.createNotification(
+                        userId,
+                        title,
+                        message,
+                        ptit.drl.evaluation.entity.Notification.NotificationType.EVALUATION_REJECTED,
+                        "EVALUATION",
+                        evaluation.getId()
+                    );
+                }
+            } catch (Exception e) {
+                // Log error but don't fail the rejection
+                System.err.println("Failed to create rejection notification: " + e.getMessage());
+            }
+        }
+        
         return EvaluationMapper.toDTO(updated);
     }
     

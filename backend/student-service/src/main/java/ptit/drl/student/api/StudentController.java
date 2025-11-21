@@ -18,9 +18,18 @@ import ptit.drl.student.repository.MajorRepository;
 import ptit.drl.student.repository.StudentClassRepository;
 import ptit.drl.student.repository.StudentRepository;
 import ptit.drl.student.service.StudentService;
+import ptit.drl.student.dto.FacultyDTO;
+import ptit.drl.student.dto.MajorDTO;
+import ptit.drl.student.dto.ClassDTO;
+import ptit.drl.student.entity.Faculty;
+import ptit.drl.student.entity.Major;
+import ptit.drl.student.entity.StudentClass;
+import ptit.drl.student.entity.Student;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for Student management
@@ -44,6 +53,113 @@ public class StudentController {
     
     @Autowired
     private MajorRepository majorRepository;
+    
+    /**
+     * GET /students/faculties - Get all faculties
+     * IMPORTANT: Must be defined BEFORE /{studentCode} to avoid path conflict
+     */
+    @GetMapping("/faculties")
+    public ResponseEntity<ApiResponse<List<FacultyDTO>>> getAllFaculties() {
+        System.out.println("=== DEBUG: getAllFaculties() called ===");
+        System.out.println("Request path: /students/faculties");
+        try {
+            List<Faculty> faculties = facultyRepository.findAll();
+            System.out.println("Found " + faculties.size() + " faculties");
+            List<FacultyDTO> facultyDTOs = faculties.stream()
+                .map(f -> new FacultyDTO(f.getCode(), f.getName(), f.getDescription()))
+                .collect(Collectors.toList());
+            System.out.println("Returning " + facultyDTOs.size() + " faculty DTOs");
+            return ResponseEntity.ok(ApiResponse.success("Faculties retrieved successfully", facultyDTOs));
+        } catch (Exception e) {
+            System.err.println("ERROR in getAllFaculties: " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+    }
+    
+    /**
+     * GET /students/majors - Get majors by faculty code
+     * IMPORTANT: Must be defined BEFORE /{studentCode} to avoid path conflict
+     */
+    @GetMapping("/majors")
+    public ResponseEntity<ApiResponse<List<MajorDTO>>> getMajorsByFaculty(
+            @RequestParam(required = false) String facultyCode) {
+        List<Major> majors;
+        if (facultyCode != null && !facultyCode.isEmpty()) {
+            majors = majorRepository.findByFacultyCode(facultyCode);
+        } else {
+            majors = majorRepository.findAll();
+        }
+        
+        List<MajorDTO> majorDTOs = majors.stream()
+            .map(m -> new MajorDTO(
+                m.getCode(),
+                m.getName(),
+                m.getDescription(),
+                m.getFaculty().getCode(),
+                m.getFaculty().getName()
+            ))
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success("Majors retrieved successfully", majorDTOs));
+    }
+    
+    /**
+     * GET /students/classes - Get classes by faculty code and optionally by major code
+     * IMPORTANT: Must be defined BEFORE /{studentCode} to avoid path conflict
+     */
+    @GetMapping("/classes")
+    public ResponseEntity<ApiResponse<List<ClassDTO>>> getClasses(
+            @RequestParam(required = false) String facultyCode,
+            @RequestParam(required = false) String majorCode) {
+        List<StudentClass> classes;
+        
+        if (facultyCode != null && !facultyCode.isEmpty()) {
+            classes = studentClassRepository.findByFacultyCode(facultyCode);
+        } else {
+            classes = studentClassRepository.findAll();
+        }
+        
+        // If majorCode is provided, filter classes by checking students in repository
+        if (majorCode != null && !majorCode.isEmpty()) {
+            // Get all students with this major and get their class codes
+            List<Student> studentsWithMajor = studentRepository.findByMajorCode(majorCode);
+            java.util.Set<String> classCodesWithMajor = studentsWithMajor.stream()
+                .map(s -> s.getStudentClass().getCode())
+                .collect(Collectors.toSet());
+            
+            // Filter classes to only include those with students in this major
+            classes = classes.stream()
+                .filter(c -> classCodesWithMajor.contains(c.getCode()))
+                .collect(Collectors.toList());
+        }
+        
+        List<ClassDTO> classDTOs = classes.stream()
+            .map(c -> {
+                // Get major from students in this class (if any)
+                String majorCodeFromClass = null;
+                String majorNameFromClass = null;
+                
+                // Get students in this class to determine major
+                List<Student> studentsInClass = studentRepository.findByStudentClassCode(c.getCode());
+                if (!studentsInClass.isEmpty()) {
+                    Major firstMajor = studentsInClass.get(0).getMajor();
+                    majorCodeFromClass = firstMajor.getCode();
+                    majorNameFromClass = firstMajor.getName();
+                }
+                
+                return new ClassDTO(
+                    c.getCode(),
+                    c.getName(),
+                    c.getAcademicYear(),
+                    c.getFaculty().getCode(),
+                    c.getFaculty().getName(),
+                    majorCodeFromClass,
+                    majorNameFromClass
+                );
+            })
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success("Classes retrieved successfully", classDTOs));
+    }
     
     /**
      * GET /students - Get all students with pagination
@@ -80,9 +196,20 @@ public class StudentController {
     @GetMapping("/{studentCode}")
     public ResponseEntity<ApiResponse<StudentDTO>> getStudentByCode(
             @PathVariable String studentCode) {
-        StudentDTO student = studentService.getStudentByCode(studentCode);
-        return ResponseEntity.ok(
-            ApiResponse.success("Student found", student));
+        System.out.println("=== DEBUG: getStudentByCode() called ===");
+        System.out.println("Request path: /students/{studentCode}");
+        System.out.println("studentCode parameter: '" + studentCode + "'");
+        System.out.println("WARNING: This endpoint was matched instead of /faculties!");
+        try {
+            StudentDTO student = studentService.getStudentByCode(studentCode);
+            return ResponseEntity.ok(
+                ApiResponse.success("Student found", student));
+        } catch (Exception e) {
+            System.err.println("ERROR in getStudentByCode: " + e.getMessage());
+            System.err.println("This means Spring matched /{studentCode} instead of /faculties");
+            e.printStackTrace();
+            throw e;
+        }
     }
     
     /**

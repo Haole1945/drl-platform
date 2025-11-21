@@ -8,8 +8,8 @@ SELECT
     'Đợt 1 - Học kỳ 1 năm học 2024-2025',
     '2024-2025-HK1',
     '2024-2025',
-    CURRENT_DATE,
-    CURRENT_DATE + INTERVAL '30 days',
+    '2025-11-20'::date,
+    '2025-12-20'::date,
     true,
     'Đợt đánh giá điểm rèn luyện học kỳ 1 năm học 2024-2025'
 WHERE NOT EXISTS (

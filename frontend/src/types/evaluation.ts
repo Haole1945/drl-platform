@@ -115,3 +115,37 @@ export interface Criteria {
   rubricId: number;
   rubricName?: string;
 }
+
+export interface EvaluationPeriod {
+  id: number;
+  name: string;
+  semester: string;
+  academicYear: string;
+  startDate: string | number[]; // Can be ISO string or LocalDate array [year, month, day]
+  endDate: string | number[]; // Can be ISO string or LocalDate array [year, month, day]
+  isActive: boolean;
+  description?: string;
+  isOpen?: boolean;
+  isFuture?: boolean;
+  isEnded?: boolean;
+}
+
+export interface CreateEvaluationPeriodRequest {
+  name: string;
+  semester: string;
+  academicYear: string;
+  startDate: string; // ISO date string (YYYY-MM-DD)
+  endDate: string; // ISO date string (YYYY-MM-DD)
+  description?: string;
+  isActive?: boolean;
+}
+
+export interface UpdateEvaluationPeriodRequest {
+  name?: string;
+  semester?: string;
+  academicYear?: string;
+  startDate?: string; // ISO date string (YYYY-MM-DD)
+  endDate?: string; // ISO date string (YYYY-MM-DD)
+  description?: string;
+  isActive?: boolean;
+}

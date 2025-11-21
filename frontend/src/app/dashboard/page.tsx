@@ -124,7 +124,7 @@ export default function DashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Link href="/evaluations">
+                  <Link href="/evaluations/my">
                     <Button variant="outline" className="w-full">
                       <FileText className="mr-2 h-4 w-4" />
                       Xem Đánh giá ({myEvaluations.length})
@@ -195,7 +195,19 @@ export default function DashboardPage() {
           {myEvaluations.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Đánh giá Gần Đây</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Đánh giá Gần Đây</CardTitle>
+                    <CardDescription>
+                      Hiển thị {Math.min(5, myEvaluations.length)} đánh giá gần đây nhất
+                    </CardDescription>
+                  </div>
+                  <Link href="/evaluations/my">
+                    <Button variant="ghost" size="sm">
+                      Xem tất cả
+                    </Button>
+                  </Link>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
@@ -317,34 +329,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
           )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Thông tin Tài khoản</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div>
-                  <span className="text-sm font-medium">Tên đăng nhập:</span>{' '}
-                  <span className="text-sm text-muted-foreground">{user?.username}</span>
-                </div>
-                <div>
-                  <span className="text-sm font-medium">Email:</span>{' '}
-                  <span className="text-sm text-muted-foreground">{user?.email}</span>
-                </div>
-                <div>
-                  <span className="text-sm font-medium">Vai trò:</span>{' '}
-                  <Badge variant="secondary">{user ? getPrimaryRoleDisplayName(user) : ''}</Badge>
-                </div>
-                {user?.studentCode && (
-                  <div>
-                    <span className="text-sm font-medium">Mã sinh viên:</span>{' '}
-                    <span className="text-sm text-muted-foreground">{user.studentCode}</span>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </DashboardLayout>
     </ProtectedRoute>

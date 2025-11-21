@@ -89,8 +89,24 @@ public class EvaluationMapper {
         dto.setScore(detail.getScore());
         // Map comment to both evidence and note (for backward compatibility)
         String comment = detail.getComment();
-        dto.setEvidence(comment);
-        dto.setNote(comment);
+        
+        System.out.println("[DEBUG MAPPER] toDetailDTO called for criteriaId=" + detail.getCriteriaId());
+        System.out.println("[DEBUG MAPPER] Comment from DB length: " + (comment != null ? comment.length() : 0));
+        System.out.println("[DEBUG MAPPER] Comment from DB preview: " + (comment != null && comment.length() > 0 
+            ? comment.substring(0, Math.min(200, comment.length())) + "..." : "null"));
+        System.out.println("[DEBUG MAPPER] Comment starts with 'Evidence: '? " + 
+            (comment != null && comment.startsWith("Evidence: ")));
+        
+        // Remove "Evidence: " prefix if present when returning to frontend
+        // Frontend expects format without prefix
+        String evidenceForResponse = comment;
+        if (evidenceForResponse != null && evidenceForResponse.startsWith("Evidence: ")) {
+            evidenceForResponse = evidenceForResponse.substring("Evidence: ".length());
+            System.out.println("[DEBUG MAPPER] Removed 'Evidence: ' prefix from response");
+        }
+        
+        dto.setEvidence(evidenceForResponse);
+        dto.setNote(comment); // Keep note as original comment
         
         // Handle criteria (may be lazy loaded)
         try {
@@ -175,15 +191,42 @@ public class EvaluationMapper {
         
         detail.setScore(request.getScore());
         
-        // Combine evidence and note into comment
+        // Store evidence directly - use exactly what frontend sends
+        // Frontend sends: "SCORES:1.1=3,1.2=10|EVIDENCE:1.1. Name: /files/..."
+        String evidence = request.getEvidence();
         String comment = "";
-        if (request.getEvidence() != null && !request.getEvidence().isEmpty()) {
-            comment = "Evidence: " + request.getEvidence();
+        
+        System.out.println("[DEBUG MAPPER] toDetailEntity called for criteriaId=" + (criteria != null ? criteria.getId() : "null"));
+        System.out.println("[DEBUG MAPPER] Evidence input length: " + (evidence != null ? evidence.length() : 0));
+        System.out.println("[DEBUG MAPPER] Evidence input preview: " + (evidence != null && evidence.length() > 0 
+            ? evidence.substring(0, Math.min(200, evidence.length())) + "..." : "null"));
+        
+        // Use evidence directly if provided (frontend already formats it correctly)
+        // Remove "Evidence: " prefix if present (from old data or legacy format)
+        if (evidence != null && !evidence.isEmpty()) {
+            // Remove prefix if present (case-insensitive check)
+            String trimmed = evidence.trim();
+            if (trimmed.startsWith("Evidence: ")) {
+                trimmed = trimmed.substring("Evidence: ".length());
+                System.out.println("[DEBUG MAPPER] Removed 'Evidence: ' prefix");
+            } else if (trimmed.startsWith("evidence: ")) {
+                trimmed = trimmed.substring("evidence: ".length());
+                System.out.println("[DEBUG MAPPER] Removed 'evidence: ' prefix");
+            }
+            comment = trimmed;
         }
+        
+        System.out.println("[DEBUG MAPPER] Final comment length: " + comment.length());
+        System.out.println("[DEBUG MAPPER] Final comment preview: " + (comment.length() > 0 
+            ? comment.substring(0, Math.min(200, comment.length())) + "..." : "empty"));
+        
+        // Add note if provided
         if (request.getNote() != null && !request.getNote().isEmpty()) {
             if (!comment.isEmpty()) comment += " | ";
             comment += "Note: " + request.getNote();
         }
+        
+        // Set comment (which contains the evidence) - NO PREFIX ADDED
         detail.setComment(comment.isEmpty() ? null : comment);
         
         return detail;

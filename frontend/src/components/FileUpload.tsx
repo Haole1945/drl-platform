@@ -140,14 +140,14 @@ export function FileUpload({
 
   // Sync files with existingFiles when it changes
   useEffect(() => {
-    if (existingFiles.length > 0) {
-      const filesWithIds = existingFiles.map((file, index) => ({
-        ...file,
-        id: file.id || Date.now() + index + Math.random(), // Generate unique ID if missing
-      }));
-      setFiles(filesWithIds);
-    }
-  }, [existingFiles]);
+    // Always sync, even if existingFiles is empty (to clear files)
+    const filesWithIds = existingFiles.map((file, index) => ({
+      ...file,
+      id: file.id || Date.now() + index + Math.random(), // Generate unique ID if missing
+    }));
+    
+    setFiles(filesWithIds);
+  }, [existingFiles, criteriaId, subCriteriaId]);
 
   const allowedTypes = {
     image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],

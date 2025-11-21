@@ -34,6 +34,10 @@ public interface StudentRepository extends JpaRepository<Student, String> {
     @Query("SELECT s FROM Student s WHERE s.academicYear = :academicYear")
     List<Student> findByAcademicYear(@Param("academicYear") String academicYear);
     
+    @EntityGraph(attributePaths = {"studentClass", "major", "faculty"})
+    @Query("SELECT s FROM Student s WHERE s.major.code = :majorCode")
+    List<Student> findByMajorCode(@Param("majorCode") String majorCode);
+    
     // Page methods (with pagination) - with fetch join
     @EntityGraph(attributePaths = {"studentClass", "major", "faculty"})
     @Query("SELECT s FROM Student s WHERE s.faculty.code = :facultyCode")

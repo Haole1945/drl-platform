@@ -112,3 +112,75 @@ export async function changePassword(data: {
   return apiClient.post<void>('/auth/change-password', data);
 }
 
+/**
+ * User Management API functions (Admin only)
+ */
+
+export interface UserListParams {
+  page?: number;
+  size?: number;
+  search?: string;
+  role?: string;
+  isActive?: boolean;
+}
+
+export interface UserListResponse {
+  content: User[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+  first: boolean;
+  last: boolean;
+}
+
+/**
+ * Get all users with pagination and filters
+ */
+export async function getAllUsers(params?: UserListParams): Promise<ApiResponse<UserListResponse>> {
+  const queryParams = new URLSearchParams();
+  if (params?.page !== undefined) queryParams.append('page', params.page.toString());
+  if (params?.size !== undefined) queryParams.append('size', params.size.toString());
+  if (params?.search) queryParams.append('search', params.search);
+  if (params?.role) queryParams.append('role', params.role);
+  if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+  
+  const query = queryParams.toString();
+  return apiClient.get<UserListResponse>(`/auth/users${query ? `?${query}` : ''}`);
+}
+
+/**
+ * Get user by ID
+ */
+export async function getUserById(id: number): Promise<ApiResponse<User>> {
+  return apiClient.get<User>(`/auth/users/${id}`);
+}
+
+/**
+ * Activate user
+ */
+export async function activateUser(id: number): Promise<ApiResponse<User>> {
+  return apiClient.put<User>(`/auth/users/${id}/activate`);
+}
+
+/**
+ * Deactivate user
+ */
+export async function deactivateUser(id: number): Promise<ApiResponse<User>> {
+  return apiClient.put<User>(`/auth/users/${id}/deactivate`);
+}
+
+/**
+ * Update user roles
+ */
+export async function updateUserRoles(id: number, roleNames: string[]): Promise<ApiResponse<User>> {
+  return apiClient.put<User>(`/auth/users/${id}/roles`, { roleNames });
+}
+
+/**
+ * Get all available roles
+ */
+export async function getAllRoles(): Promise<ApiResponse<string[]>> {
+  return apiClient.get<string[]>('/auth/users/roles');
+}
+

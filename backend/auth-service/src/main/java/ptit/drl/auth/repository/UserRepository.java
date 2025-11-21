@@ -3,6 +3,7 @@ package ptit.drl.auth.repository;
 import ptit.drl.auth.entity.User;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -10,7 +11,7 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
     // Optimized queries with fetch join to avoid N+1 queries for roles/permissions
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     @Query("SELECT u FROM User u WHERE u.username = :username")

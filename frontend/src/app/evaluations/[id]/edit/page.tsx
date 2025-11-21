@@ -34,6 +34,127 @@ export default function EditEvaluationPage() {
 
   const evaluationId = params?.id ? parseInt(params.id as string) : null;
 
+  // Initialize scores and files from evaluation when it loads
+  // Force re-initialize when evaluation changes (including after update)
+  useEffect(() => {
+    if (!evaluation || !criteria.length || !evaluation.details) {
+      // Reset states when evaluation is cleared
+      setSubCriteriaScores({});
+      setSubCriteriaFiles({});
+      return;
+    }
+
+    criteria.forEach(criterion => {
+      const detail = evaluation.details.find(d => d.criteriaId === criterion.id);
+      if (!detail) {
+        return;
+      }
+
+      // Parse evidence to get sub-criteria files and scores
+      const parsedEvidence = detail.evidence ? parseEvidence(detail.evidence) : [];
+      
+      // Initialize scores from existing detail
+      const scores: Record<string, number> = {};
+      parsedEvidence.forEach(evidence => {
+        if (evidence.subCriteriaId && evidence.score !== undefined) {
+          scores[evidence.subCriteriaId] = evidence.score;
+        }
+      });
+      // If no scores found in evidence, try to distribute total score equally
+      if (Object.keys(scores).length === 0) {
+        const subCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
+        if (subCriteria.length > 0) {
+          const totalScore = detail.score || detail.selfScore || 0;
+          const scorePerSub = totalScore / subCriteria.length;
+          subCriteria.forEach(sub => {
+            scores[sub.id] = scorePerSub;
+          });
+        }
+      }
+      // Update scores state
+      if (Object.keys(scores).length > 0) {
+        setSubCriteriaScores(prev => {
+          if (prev[criterion.id]) {
+            return prev; // Don't overwrite user changes
+          }
+          return {
+            ...prev,
+            [criterion.id]: scores
+          };
+        });
+      }
+
+      // Initialize files from existing evidence
+      if (parsedEvidence.length > 0) {
+        const files: Record<string, UploadedFile[]> = {};
+        parsedEvidence.forEach(evidence => {
+          if (evidence.subCriteriaId && evidence.fileUrls && evidence.fileUrls.length > 0) {
+            files[evidence.subCriteriaId] = evidence.fileUrls.map((url, index) => {
+              // Normalize fileUrl - ensure it's a relative path starting with /files/evidence/
+              let normalizedUrl = url;
+              if (url.startsWith('http://') || url.startsWith('https://')) {
+                try {
+                  const urlObj = new URL(url);
+                  normalizedUrl = urlObj.pathname;
+                } catch (e) {
+                  const match = url.match(/\/files\/evidence\/.+/);
+                  if (match) normalizedUrl = match[0];
+                }
+              }
+              // Ensure it starts with /files/evidence/
+              if (normalizedUrl && !normalizedUrl.startsWith('/files/evidence/')) {
+                if (normalizedUrl.startsWith('/files/')) {
+                  // Already has /files/, might be correct
+                } else if (normalizedUrl.includes('/evidence/')) {
+                  normalizedUrl = '/files' + (normalizedUrl.startsWith('/') ? normalizedUrl : '/' + normalizedUrl);
+                }
+              }
+              return {
+                id: Date.now() + index + Math.random(),
+                fileUrl: normalizedUrl,
+                fileName: normalizedUrl.split('/').pop() || 'file',
+                fileSize: 0,
+                fileType: 'application/octet-stream',
+              };
+            });
+          }
+        });
+
+        // Update files state - merge with existing to preserve user uploads
+        setSubCriteriaFiles(prev => {
+          const existingFiles = prev[criterion.id] || {};
+          
+          // Only update if we have new files or files changed
+          const hasChanges = Object.keys(files).length > 0 && 
+            Object.keys(files).some(subId => {
+              const existing = existingFiles[subId] || [];
+              const newFiles = files[subId] || [];
+              if (existing.length !== newFiles.length) {
+                return true;
+              }
+              const existingUrls = existing.map(f => f.fileUrl).sort().join(',');
+              const newUrls = newFiles.map(f => f.fileUrl).sort().join(',');
+              if (existingUrls !== newUrls) {
+                return true;
+              }
+              return false;
+            });
+          
+          if (hasChanges) {
+            return {
+              ...prev,
+              [criterion.id]: {
+                ...existingFiles,
+                ...files // Merge: new files override existing, but keep user uploads
+              }
+            };
+          }
+          return prev;
+        });
+      }
+    });
+  }, [evaluation, criteria]); // Only depend on evaluation and criteria
+
   // Parse criteria to include sub-criteria and map with evaluation details
   const criteriaWithSubCriteria = useMemo<CriteriaWithSubCriteria[]>(() => {
     if (!criteria.length || !evaluation || !evaluation.details) return [];
@@ -48,67 +169,14 @@ export default function EditEvaluationPage() {
       // Map sub-criteria with scores and files
       const subCriteriaWithData = subCriteria.map((sub, subIndex) => {
         const evidenceData = parsedEvidence.find(e => e.subCriteriaId === sub.id);
-        // Convert fileUrls to file objects with url property
-        // Note: This is just for display, actual files are loaded from subCriteriaFiles state
-        const files = (evidenceData?.fileUrls || []).map((url, fileIndex) => ({ 
-          url,
-          // Temporary key for React (will be replaced by actual file objects from state)
-          _tempKey: `${sub.id}-${fileIndex}`
-        }));
+        // Get files from state (which is initialized from evidence)
+        const filesFromState = subCriteriaFiles[criterion.id]?.[sub.id] || [];
         return {
           ...sub,
-          score: 0, // Will be set from subCriteriaScores
-          evidence: files,
+          score: subCriteriaScores[criterion.id]?.[sub.id] || 0,
+          evidence: filesFromState.map(f => ({ url: f.fileUrl })), // Convert to display format
         };
       });
-
-      // Initialize scores from existing detail
-      // Scores are stored in evidence with format: "SCORES:1.1=3,1.2=10|EVIDENCE:..."
-      if (detail && !subCriteriaScores[criterion.id]) {
-        const scores: Record<string, number> = {};
-        // Parse scores from evidence
-        parsedEvidence.forEach(evidence => {
-          if (evidence.subCriteriaId && evidence.score !== undefined) {
-            scores[evidence.subCriteriaId] = evidence.score;
-          }
-        });
-        // If no scores found in evidence, try to distribute total score equally
-        if (Object.keys(scores).length === 0 && subCriteria.length > 0) {
-          const totalScore = detail.score || detail.selfScore || 0;
-          const scorePerSub = totalScore / subCriteria.length;
-          subCriteria.forEach(sub => {
-            scores[sub.id] = scorePerSub;
-          });
-        }
-        // Only set if we have scores
-        if (Object.keys(scores).length > 0) {
-          setSubCriteriaScores(prev => ({
-            ...prev,
-            [criterion.id]: scores
-          }));
-        }
-      }
-
-      // Initialize files from existing evidence
-      if (detail && parsedEvidence.length > 0 && !subCriteriaFiles[criterion.id]) {
-        const files: Record<string, UploadedFile[]> = {};
-        parsedEvidence.forEach(evidence => {
-          if (evidence.subCriteriaId && evidence.fileUrls) {
-            // Generate unique IDs for files (use index + timestamp to ensure uniqueness)
-            files[evidence.subCriteriaId] = evidence.fileUrls.map((url, index) => ({
-              id: Date.now() + index + Math.random(), // Unique ID
-              fileUrl: url,
-              fileName: url.split('/').pop() || 'file',
-              fileSize: 0, // Unknown from parsed evidence
-              fileType: 'application/octet-stream', // Default type
-            }));
-          }
-        });
-        setSubCriteriaFiles(prev => ({
-          ...prev,
-          [criterion.id]: files
-        }));
-      }
 
       const scores = subCriteriaScores[criterion.id] || {};
       const totalScore = calculateCriteriaTotal(subCriteria, scores);
@@ -132,9 +200,13 @@ export default function EditEvaluationPage() {
       return;
     }
 
+    let isMounted = true;
+
     const loadEvaluation = async () => {
       try {
         const response = await getEvaluationById(evaluationId);
+        if (!isMounted) return;
+        
         if (response.success && response.data) {
           const evaluationData = response.data;
           
@@ -164,6 +236,8 @@ export default function EditEvaluationPage() {
           // Load criteria
           if (evaluationData.rubricId) {
             const criteriaResponse = await getCriteriaByRubric(evaluationData.rubricId);
+            if (!isMounted) return;
+            
             if (criteriaResponse.success && criteriaResponse.data) {
               setCriteria(criteriaResponse.data);
             }
@@ -177,6 +251,8 @@ export default function EditEvaluationPage() {
           router.push('/evaluations');
         }
       } catch (error: any) {
+        if (!isMounted) return;
+        
         // If we reach here, it means all retries failed - this is a real error
         // Retry logic in API client handles transient errors automatically
         toast({
@@ -186,12 +262,18 @@ export default function EditEvaluationPage() {
         });
         router.push('/evaluations');
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadEvaluation();
-  }, [evaluationId, user, router, toast]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [evaluationId]); // Remove user, router, toast from dependencies to prevent re-renders
 
   const handleSubCriteriaScoreChange = (criteriaId: number, subCriteriaId: string, score: number) => {
     setSubCriteriaScores(prev => ({
@@ -223,7 +305,49 @@ export default function EditEvaluationPage() {
         const subEvidence = criterion.subCriteria
           .map(sub => {
             const files = subCriteriaFiles[criterion.id]?.[sub.id] || [];
-            const fileUrls = files.map(f => f.fileUrl).join(', ');
+            // Ensure fileUrl is properly formatted (should be relative path like /files/evidence/...)
+            const fileUrls = files
+              .map(f => {
+                // If fileUrl already starts with /files/, use it directly
+                // Otherwise, it might be a full URL, extract the path
+                let url = f.fileUrl || '';
+                if (!url) return '';
+                
+                // If it's a full URL, extract the path
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                  try {
+                    const urlObj = new URL(url);
+                    url = urlObj.pathname;
+                  } catch (e) {
+                    // If URL parsing fails, try to extract path manually
+                    const match = url.match(/\/files\/evidence\/.+/);
+                    if (match) url = match[0];
+                  }
+                }
+                
+                // Ensure it starts with /files/evidence/
+                if (url && !url.startsWith('/files/evidence/')) {
+                  // Try to fix if it's missing the prefix
+                  if (url.startsWith('/files/')) {
+                    // Already has /files/, might be correct - check if it has /evidence/
+                    if (!url.includes('/evidence/')) {
+                      // Missing /evidence/ part, might need to add it
+                      // But this shouldn't happen if backend returns correct format
+                      console.warn('File URL missing /evidence/ part:', url);
+                    }
+                  } else if (url.includes('/evidence/')) {
+                    // Has evidence but missing /files prefix
+                    url = '/files' + (url.startsWith('/') ? url : '/' + url);
+                  } else {
+                    // Doesn't look like a valid file URL
+                    console.warn('Invalid file URL format:', url);
+                    return '';
+                  }
+                }
+                return url;
+              })
+              .filter(url => url && url.startsWith('/files/evidence/'))
+              .join(', ');
             return fileUrls ? `${sub.id}. ${sub.name}: ${fileUrls}` : '';
           })
           .filter(e => e)
@@ -240,6 +364,19 @@ export default function EditEvaluationPage() {
         };
       });
 
+      console.log('[DEBUG EDIT] ===== PAYLOAD BEFORE SEND =====');
+      console.log('[DEBUG EDIT] Evaluation ID:', evaluationId);
+      console.log('[DEBUG EDIT] Details count:', details.length);
+      details.forEach((detail, idx) => {
+        console.log(`[DEBUG EDIT] Detail ${idx + 1}:`, {
+          criteriaId: detail.criteriaId,
+          score: detail.score,
+          evidence: detail.evidence?.substring(0, 300) + (detail.evidence?.length > 300 ? '...' : ''),
+          evidenceLength: detail.evidence?.length || 0
+        });
+      });
+      console.log('[DEBUG EDIT] =============================');
+
       const response = await updateEvaluation(evaluationId, {
         details: details as any
       });
@@ -249,10 +386,10 @@ export default function EditEvaluationPage() {
           title: "Thành công",
           description: "Đánh giá đã được cập nhật.",
         });
-        // Small delay to ensure backend transaction is committed
-        // before redirecting and loading the detail page
+        
+        // Redirect to detail page after successful update
         await new Promise(resolve => setTimeout(resolve, 300));
-        router.replace(`/evaluations/${evaluationId}`);
+        router.push(`/evaluations/${evaluationId}`);
       }
     } catch (error: any) {
       // If we reach here, it means all retries failed - this is a real error
@@ -387,6 +524,7 @@ export default function EditEvaluationPage() {
                             </div>
                             <div className="col-span-2 flex justify-center items-center">
                               <FileUpload
+                                evaluationId={evaluationId}
                                 criteriaId={criterion.id}
                                 subCriteriaId={sub.id}
                                 onFilesChange={(files) => {
@@ -431,6 +569,7 @@ export default function EditEvaluationPage() {
                         <div>
                           <Label>Bằng chứng / Minh chứng</Label>
                           <FileUpload
+                            evaluationId={evaluationId}
                             criteriaId={criterion.id}
                             onFilesChange={(files) => {
                               setSubCriteriaFiles(prev => ({

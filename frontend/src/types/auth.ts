@@ -21,9 +21,10 @@ export interface User {
   studentCode?: string;
   role?: Role; // Single role (for backward compatibility)
   roles?: Role[]; // Multiple roles (new)
-  enabled: boolean;
-  createdAt: string;
-  updatedAt: string;
+  isActive?: boolean; // Matches backend UserDTO.isActive
+  enabled?: boolean; // Deprecated - use isActive instead
+  createdAt?: string | number[]; // Can be string or array from LocalDateTime [year, month, day, hour, minute, second, nanosecond]
+  updatedAt?: string | number[]; // Can be string or array from LocalDateTime [year, month, day, hour, minute, second, nanosecond]
 }
 
 export interface LoginRequest {

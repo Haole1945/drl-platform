@@ -130,11 +130,13 @@ class ApiClient {
           throw fetchError;
         });
 
-        // Store response status for retry logic
-        lastResponseStatus = response.status;
+                // Store response status for retry logic
+                lastResponseStatus = response.status;
+                console.log(`[DEBUG API] Response status: ${response.status} for ${url}`);
 
-        // Read response text once (can only be read once)
-        const responseText = await response.text();
+                // Read response text once (can only be read once)
+                const responseText = await response.text();
+                console.log(`[DEBUG API] Response body:`, responseText.substring(0, 500)); // First 500 chars
 
         // Handle non-JSON responses
         const contentType = response.headers.get('content-type');

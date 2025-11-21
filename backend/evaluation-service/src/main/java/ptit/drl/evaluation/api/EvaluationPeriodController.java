@@ -38,14 +38,26 @@ public class EvaluationPeriodController {
     }
     
     /**
-     * GET /evaluation-periods - Get all active periods (public)
+     * GET /evaluation-periods - Get all periods (both active and inactive)
+     * For admin use - shows all periods regardless of active status
      */
     @GetMapping
+    public ResponseEntity<ApiResponse<List<EvaluationPeriodDTO>>> getAllPeriods() {
+        List<EvaluationPeriodDTO> periods = periodService.getAllPeriods().stream()
+                .map(EvaluationPeriodMapper::toDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success("Danh sách đợt đánh giá", periods));
+    }
+    
+    /**
+     * GET /evaluation-periods/active - Get all active periods only (public)
+     */
+    @GetMapping("/active")
     public ResponseEntity<ApiResponse<List<EvaluationPeriodDTO>>> getAllActivePeriods() {
         List<EvaluationPeriodDTO> periods = periodService.getAllActivePeriods().stream()
                 .map(EvaluationPeriodMapper::toDTO)
                 .collect(Collectors.toList());
-        return ResponseEntity.ok(ApiResponse.success("Danh sách đợt đánh giá", periods));
+        return ResponseEntity.ok(ApiResponse.success("Danh sách đợt đánh giá đang kích hoạt", periods));
     }
     
     /**
