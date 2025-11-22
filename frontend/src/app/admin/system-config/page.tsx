@@ -47,6 +47,8 @@ export default function SystemConfigPage() {
     description: '',
     maxScore: 100,
     academicYear: '',
+    isActive: true,
+    targetClasses: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -124,6 +126,8 @@ export default function SystemConfigPage() {
       description: 'Bảng tiêu chí đánh giá điểm rèn luyện năm học 2024-2025 - Học viện CN Bưu chính Viễn thông (PTIT).',
       maxScore: 100,
       academicYear: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
+      isActive: true,
+      targetClasses: '',
     });
     setCriteria([]);
     setExpandedCriteria([]);
@@ -138,6 +142,8 @@ export default function SystemConfigPage() {
       description: rubric.description || '',
       maxScore: rubric.maxScore,
       academicYear: rubric.academicYear || '',
+      isActive: rubric.isActive,
+      targetClasses: rubric.targetClasses || '',
     });
     await loadCriteria(rubric.id);
   };
@@ -151,6 +157,8 @@ export default function SystemConfigPage() {
       description: '',
       maxScore: 100,
       academicYear: '',
+      isActive: true,
+      targetClasses: '',
     });
     setCriteria([]);
   };
@@ -354,12 +362,26 @@ export default function SystemConfigPage() {
       
       // Save or update rubric
       let rubricId: number;
+      const rubricData = {
+        ...rubricFormData,
+        targetClasses: rubricFormData.targetClasses.trim() || undefined
+      };
+      
+      console.log('🔍 DEBUG - Rubric Form Data:', rubricFormData);
+      console.log('🔍 DEBUG - Rubric Data to send:', rubricData);
+      console.log('🔍 DEBUG - isActive value:', rubricData.isActive);
+      console.log('🔍 DEBUG - targetClasses value:', rubricData.targetClasses);
+      
       if (selectedRubric) {
-        const response = await updateRubric(selectedRubric.id, rubricFormData);
+        console.log('🔄 DEBUG - Updating rubric ID:', selectedRubric.id);
+        const response = await updateRubric(selectedRubric.id, rubricData);
+        console.log('✅ DEBUG - Update response:', response);
         if (!response.success) throw new Error(response.message);
         rubricId = selectedRubric.id;
       } else {
-        const response = await createRubric(rubricFormData);
+        console.log('➕ DEBUG - Creating new rubric');
+        const response = await createRubric(rubricData);
+        console.log('✅ DEBUG - Create response:', response);
         if (!response.success) throw new Error(response.message);
         rubricId = response.data.id;
       }

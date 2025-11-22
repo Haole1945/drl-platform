@@ -30,6 +30,9 @@ public class User extends BaseEntity {
     @Column(name = "student_code", length = 20)
     private String studentCode; // Reference to student in student-service (no FK)
     
+    @Column(name = "class_code", length = 20)
+    private String classCode; // Class code from student record (e.g., "D21DCCN01-N")
+    
     // Changed to LAZY - use @EntityGraph in repository for optimized loading
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -107,6 +110,14 @@ public class User extends BaseEntity {
     
     public void setStudentCode(String studentCode) {
         this.studentCode = studentCode;
+    }
+    
+    public String getClassCode() {
+        return classCode;
+    }
+    
+    public void setClassCode(String classCode) {
+        this.classCode = classCode;
     }
     
     public Set<Role> getRoles() {

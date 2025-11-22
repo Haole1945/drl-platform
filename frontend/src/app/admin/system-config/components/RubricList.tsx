@@ -54,6 +54,20 @@ export const RubricList: React.FC<RubricListProps> = ({
                   <p className="text-sm text-muted-foreground mt-1">
                     {rubric.academicYear} - {rubric.maxScore} điểm
                   </p>
+                  {rubric.targetClasses && (
+                    <div className="flex gap-1 mt-2 flex-wrap">
+                      {rubric.targetClasses.split(',').map((classCode) => (
+                        <Badge key={classCode.trim()} variant="outline" className="text-xs font-mono">
+                          {classCode.trim()}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                  {!rubric.targetClasses && (
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Áp dụng cho tất cả các lớp
+                    </p>
+                  )}
                 </div>
                 {onDeleteRubric && (
                   <Button

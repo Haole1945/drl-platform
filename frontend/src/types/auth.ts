@@ -19,6 +19,7 @@ export interface User {
   email: string;
   fullName: string;
   studentCode?: string;
+  classCode?: string; // Class code from student record (e.g., "D21DCCN01-N")
   role?: Role; // Single role (for backward compatibility)
   roles?: Role[]; // Multiple roles (new)
   isActive?: boolean; // Matches backend UserDTO.isActive

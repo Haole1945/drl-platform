@@ -13,6 +13,7 @@ public class UserDTO {
     private String email;
     private String fullName;
     private String studentCode;
+    private String classCode; // Class code from student record (e.g., "D21DCCN01-N")
     private Set<String> roles;
     private Set<String> permissions;
     private Boolean isActive;
@@ -57,6 +58,14 @@ public class UserDTO {
     
     public void setStudentCode(String studentCode) {
         this.studentCode = studentCode;
+    }
+    
+    public String getClassCode() {
+        return classCode;
+    }
+    
+    public void setClassCode(String classCode) {
+        this.classCode = classCode;
     }
     
     public Set<String> getRoles() {

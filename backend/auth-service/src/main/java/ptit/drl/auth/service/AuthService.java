@@ -69,6 +69,7 @@ public class AuthService {
         }
         
         // Validate studentCode if provided (for student users)
+        String classCode = null;
         if (request.getStudentCode() != null && !request.getStudentCode().isEmpty()) {
             try {
                 StudentServiceClient.StudentResponse studentResponse = 
@@ -77,6 +78,10 @@ public class AuthService {
                 if (studentResponse == null || !studentResponse.isSuccess() || studentResponse.getData() == null) {
                     throw new ResourceNotFoundException(
                         "Student", "code", request.getStudentCode());
+                }
+                // Extract classCode from student data
+                if (studentResponse.getData() != null) {
+                    classCode = studentResponse.getData().getClassCode();
                 }
             } catch (ResourceNotFoundException e) {
                 // Re-throw if already ResourceNotFoundException (from error decoder)
@@ -116,6 +121,7 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setFullName(request.getFullName());
         user.setStudentCode(request.getStudentCode());
+        user.setClassCode(classCode);
         user.setIsActive(true);
         
         // Assign default role (STUDENT)
@@ -162,9 +168,14 @@ public class AuthService {
             // User exists, generate new password
             password = generateRandomPassword();
             existingUser.setPasswordHash(passwordEncoder.encode(password));
-            // Update fullName from student data if available
-            if (studentData != null && studentData.getFullName() != null) {
-                existingUser.setFullName(studentData.getFullName());
+            // Update fullName and classCode from student data if available
+            if (studentData != null) {
+                if (studentData.getFullName() != null) {
+                    existingUser.setFullName(studentData.getFullName());
+                }
+                if (studentData.getClassCode() != null) {
+                    existingUser.setClassCode(studentData.getClassCode());
+                }
             }
             
             // Auto-assign CLASS_MONITOR role if student position is CLASS_MONITOR
@@ -190,6 +201,7 @@ public class AuthService {
                     ? studentData.getFullName() 
                     : studentCode);
             user.setStudentCode(studentCode);
+            user.setClassCode(studentData != null ? studentData.getClassCode() : null);
             user.setIsActive(true);
             
             // Assign default role (STUDENT)
@@ -284,6 +296,22 @@ public class AuthService {
                 .map(ptit.drl.auth.entity.Permission::getName)
                 .collect(Collectors.toSet());
         
+        // Fetch classCode from student-service if user has studentCode
+        if (user.getStudentCode() != null && !user.getStudentCode().isEmpty()) {
+            try {
+                StudentServiceClient.StudentResponse studentResponse = 
+                    studentServiceClient.getStudentByCode(user.getStudentCode());
+                if (studentResponse != null && studentResponse.isSuccess() && 
+                    studentResponse.getData() != null && studentResponse.getData().getClassCode() != null) {
+                    user.setClassCode(studentResponse.getData().getClassCode());
+                }
+            } catch (Exception e) {
+                // Log error but don't fail login
+                System.err.println("[Auth Service] Failed to fetch classCode for " + 
+                    user.getStudentCode() + ": " + e.getMessage());
+            }
+        }
+        
         // Generate tokens
         String accessToken = jwtTokenProvider.generateAccessToken(
                 user.getId(), user.getUsername(), roles, permissions);
@@ -331,6 +359,22 @@ public class AuthService {
                 .map(ptit.drl.auth.entity.Permission::getName)
                 .collect(Collectors.toSet());
         
+        // Fetch classCode from student-service if user has studentCode
+        if (user.getStudentCode() != null && !user.getStudentCode().isEmpty()) {
+            try {
+                StudentServiceClient.StudentResponse studentResponse = 
+                    studentServiceClient.getStudentByCode(user.getStudentCode());
+                if (studentResponse != null && studentResponse.isSuccess() && 
+                    studentResponse.getData() != null && studentResponse.getData().getClassCode() != null) {
+                    user.setClassCode(studentResponse.getData().getClassCode());
+                }
+            } catch (Exception e) {
+                // Log error but don't fail refresh
+                System.err.println("[Auth Service] Failed to fetch classCode for " + 
+                    user.getStudentCode() + ": " + e.getMessage());
+            }
+        }
+        
         // Generate new access token
         String newAccessToken = jwtTokenProvider.generateAccessToken(
                 user.getId(), user.getUsername(), roles, permissions);
@@ -354,13 +398,29 @@ public class AuthService {
         // Use optimized query with fetch join to avoid N+1 queries
         User user = userRepository.findByIdWithRoles(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        
+        // Fetch classCode from student-service if user has studentCode
+        if (user.getStudentCode() != null && !user.getStudentCode().isEmpty()) {
+            try {
+                StudentServiceClient.StudentResponse studentResponse = 
+                    studentServiceClient.getStudentByCode(user.getStudentCode());
+                if (studentResponse != null && studentResponse.isSuccess() && 
+                    studentResponse.getData() != null && studentResponse.getData().getClassCode() != null) {
+                    user.setClassCode(studentResponse.getData().getClassCode());
+                }
+            } catch (Exception e) {
+                // Log error but don't fail getCurrentUser
+                System.err.println("[Auth Service] Failed to fetch classCode for " + 
+                    user.getStudentCode() + ": " + e.getMessage());
+            }
+        }
+        
         return UserMapper.toDTO(user);
     }
     
     /**
      * Get all active user IDs (for sending notifications)
      */
-    @Transactional(readOnly = true)
     /**
      * Get user ID by student code
      * Used by evaluation-service to send notifications

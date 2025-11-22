@@ -122,7 +122,8 @@ export default function EvaluationDetailPage() {
         setEvaluation(evalData);
 
         // Load rubric and criteria
-        const rubricResponse = await getActiveRubric();
+        const classCode = user?.classCode;
+        const rubricResponse = await getActiveRubric(undefined, classCode);
         if (rubricResponse.success && rubricResponse.data) {
           setRubric(rubricResponse.data);
           

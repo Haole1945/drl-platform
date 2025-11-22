@@ -28,6 +28,7 @@ public class RubricMapper {
         dto.setMaxScore(rubric.getMaxPoints());
         dto.setAcademicYear(rubric.getAcademicYear());
         dto.setIsActive(rubric.getIsActive());
+        dto.setTargetClasses(rubric.getTargetClasses());
         dto.setCreatedAt(rubric.getCreatedAt());
         dto.setUpdatedAt(rubric.getUpdatedAt());
         
@@ -60,6 +61,7 @@ public class RubricMapper {
         dto.setMaxScore(rubric.getMaxPoints());
         dto.setAcademicYear(rubric.getAcademicYear());
         dto.setIsActive(rubric.getIsActive());
+        dto.setTargetClasses(rubric.getTargetClasses());
         dto.setCreatedAt(rubric.getCreatedAt());
         dto.setUpdatedAt(rubric.getUpdatedAt());
         
@@ -98,4 +100,3 @@ public class RubricMapper {
         return dto;
     }
 }
-

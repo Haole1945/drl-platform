@@ -87,7 +87,13 @@ export default function NewEvaluationPage() {
         }
         
         // Load rubric
-        const rubricResponse = await getActiveRubric();
+        console.log('👤 Current user:', user);
+        console.log('📝 Student code:', user?.studentCode);
+        console.log('🏫 Class code:', user?.classCode);
+        const classCode = user?.classCode;
+        console.log('🎯 Using class code for rubric filter:', classCode);
+        const rubricResponse = await getActiveRubric(undefined, classCode);
+        console.log('📋 Rubric response:', rubricResponse);
         if (rubricResponse.success && rubricResponse.data) {
           setRubric(rubricResponse.data);
           

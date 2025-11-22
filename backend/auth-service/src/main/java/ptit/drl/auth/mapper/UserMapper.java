@@ -27,6 +27,7 @@ public class UserMapper {
         dto.setEmail(user.getEmail());
         dto.setFullName(user.getFullName());
         dto.setStudentCode(user.getStudentCode());
+        dto.setClassCode(user.getClassCode());
         dto.setIsActive(user.getIsActive());
         dto.setCreatedAt(user.getCreatedAt());
         

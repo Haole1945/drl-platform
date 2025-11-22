@@ -102,6 +102,7 @@ export interface Rubric {
   maxScore: number;
   academicYear?: string;
   isActive: boolean;
+  targetClasses?: string; // Comma-separated class codes: "D21CQCN01-N,D20CQCN01-N" or null for all
   criteria?: Criteria[];
   criteriaCount?: number;
 }

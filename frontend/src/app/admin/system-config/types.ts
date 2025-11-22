@@ -24,4 +24,6 @@ export interface RubricFormData {
   description: string;
   maxScore: number;
   academicYear: string;
+  isActive: boolean;
+  targetClasses: string; // Comma-separated class codes input
 }

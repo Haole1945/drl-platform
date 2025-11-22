@@ -24,6 +24,9 @@ public class Rubric extends BaseEntity {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
     
+    @Column(name = "target_classes", length = 500)
+    private String targetClasses; // Comma-separated class codes: "D21CQCN01-N,D20CQCN01-N" or null for all
+    
     @OneToMany(mappedBy = "rubric", cascade = CascadeType.ALL, orphanRemoval = true)
     @BatchSize(size = 20) // Batch load criteria to avoid N+1 queries
     private List<Criteria> criteria = new ArrayList<>();
@@ -77,6 +80,14 @@ public class Rubric extends BaseEntity {
     
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+    
+    public String getTargetClasses() {
+        return targetClasses;
+    }
+    
+    public void setTargetClasses(String targetClasses) {
+        this.targetClasses = targetClasses;
     }
     
     public List<Criteria> getCriteria() {

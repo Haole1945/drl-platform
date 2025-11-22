@@ -43,29 +43,37 @@ public class RubricController {
     
     /**
      * GET /rubrics/active - Get active rubric
-     * Query param: academicYear (optional)
+     * Query param: academicYear (optional), classCode (optional)
      */
     @GetMapping("/active")
     public ResponseEntity<ApiResponse<RubricDTO>> getActiveRubric(
-            @RequestParam(required = false) String academicYear) {
-        RubricDTO rubric = rubricService.getActiveRubric(academicYear);
+            @RequestParam(required = false) String academicYear,
+            @RequestParam(required = false) String classCode) {
+        System.out.println("🔍 GET /rubrics/active called");
+        System.out.println("🔍 academicYear: " + academicYear);
+        System.out.println("🔍 classCode: " + classCode);
+        RubricDTO rubric = rubricService.getActiveRubric(academicYear, classCode);
+        System.out.println("✅ Returning rubric: " + rubric.getName());
+        System.out.println("✅ Rubric targetClasses: " + rubric.getTargetClasses());
         return ResponseEntity.ok(
             ApiResponse.success("Active rubric found", rubric));
     }
     
     /**
      * POST /rubrics - Create new rubric
-     * Body: { "name", "description", "maxScore", "academicYear" }
+     * Body: { "name", "description", "maxScore", "academicYear", "isActive", "targetClasses" }
      */
     @PostMapping
     public ResponseEntity<ApiResponse<RubricDTO>> createRubric(
             @RequestParam String name,
             @RequestParam(required = false) String description,
             @RequestParam Double maxScore,
-            @RequestParam String academicYear) {
+            @RequestParam String academicYear,
+            @RequestParam(required = false, defaultValue = "true") Boolean isActive,
+            @RequestParam(required = false) String targetClasses) {
         
         RubricDTO rubric = rubricService.createRubric(
-            name, description, maxScore, academicYear);
+            name, description, maxScore, academicYear, isActive, targetClasses);
         
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success("Rubric created successfully", rubric));
@@ -80,10 +88,20 @@ public class RubricController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String description,
             @RequestParam(required = false) Double maxScore,
-            @RequestParam(required = false) String academicYear) {
+            @RequestParam(required = false) String academicYear,
+            @RequestParam(required = false) Boolean isActive,
+            @RequestParam(required = false) String targetClasses) {
+        
+        System.out.println("🔍 BACKEND - updateRubric called");
+        System.out.println("🔍 BACKEND - ID: " + id);
+        System.out.println("🔍 BACKEND - isActive: " + isActive);
+        System.out.println("🔍 BACKEND - targetClasses: " + targetClasses);
         
         RubricDTO rubric = rubricService.updateRubric(
-            id, name, description, maxScore, academicYear);
+            id, name, description, maxScore, academicYear, isActive, targetClasses);
+        
+        System.out.println("🔍 BACKEND - Updated rubric isActive: " + rubric.getIsActive());
+        System.out.println("🔍 BACKEND - Updated rubric targetClasses: " + rubric.getTargetClasses());
         
         return ResponseEntity.ok(
             ApiResponse.success("Rubric updated successfully", rubric));

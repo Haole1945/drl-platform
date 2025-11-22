@@ -13,6 +13,7 @@ public class RubricDTO {
     private Double maxScore;
     private String academicYear;
     private Boolean isActive;
+    private String targetClasses;
     private Integer criteriaCount;
     private List<CriteriaDTO> criteria;
     private LocalDateTime createdAt;
@@ -68,6 +69,14 @@ public class RubricDTO {
     
     public void setIsActive(Boolean isActive) {
         this.isActive = isActive;
+    }
+    
+    public String getTargetClasses() {
+        return targetClasses;
+    }
+    
+    public void setTargetClasses(String targetClasses) {
+        this.targetClasses = targetClasses;
     }
     
     public Integer getCriteriaCount() {
