@@ -27,6 +27,13 @@ public class EvaluationPeriodMapper {
         dto.setEndDate(period.getEndDate());
         dto.setIsActive(period.getIsActive());
         dto.setDescription(period.getDescription());
+        dto.setTargetClasses(period.getTargetClasses());
+        
+        // Rubric info
+        if (period.getRubric() != null) {
+            dto.setRubricId(period.getRubric().getId());
+            dto.setRubricName(period.getRubric().getName());
+        }
         
         // Computed fields
         dto.setIsOpen(period.isOpen());

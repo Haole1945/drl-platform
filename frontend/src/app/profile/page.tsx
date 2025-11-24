@@ -42,8 +42,33 @@ function parseDate(dateValue: string | number[] | undefined): Date | null {
   }
 }
 
+import { getStudentByCode } from '@/lib/student';
+import type { Student } from '@/lib/student';
+
 export default function ProfilePage() {
   const { user, isLoading } = useAuth();
+  const [studentInfo, setStudentInfo] = useState<Student | null>(null);
+  const [loadingStudent, setLoadingStudent] = useState(false);
+
+  // Load student info if user is a student
+  useEffect(() => {
+    const loadStudentInfo = async () => {
+      if (user?.studentCode) {
+        setLoadingStudent(true);
+        try {
+          const response = await getStudentByCode(user.studentCode);
+          if (response.success && response.data) {
+            setStudentInfo(response.data);
+          }
+        } catch (error) {
+          console.error('Failed to load student info:', error);
+        } finally {
+          setLoadingStudent(false);
+        }
+      }
+    };
+    loadStudentInfo();
+  }, [user]);
 
   if (isLoading) {
     return (
@@ -80,7 +105,7 @@ export default function ProfilePage() {
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -113,6 +138,12 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium mt-1">{user.studentCode}</p>
                   </div>
                 )}
+                {user.classCode && (
+                  <div>
+                    <label className="text-sm font-medium text-muted-foreground">Lớp</label>
+                    <p className="text-sm font-medium mt-1">{studentInfo?.className || user.classCode}</p>
+                  </div>
+                )}
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Vai trò</label>
                   <div className="mt-1">
@@ -123,6 +154,87 @@ export default function ProfilePage() {
                 </div>
               </CardContent>
             </Card>
+
+            {studentInfo && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Thông tin sinh viên</CardTitle>
+                  <CardDescription>
+                    Thông tin chi tiết về sinh viên
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {studentInfo.dateOfBirth && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Ngày sinh</label>
+                      <p className="text-sm font-medium mt-1">
+                        {(() => {
+                          try {
+                            const date = Array.isArray(studentInfo.dateOfBirth)
+                              ? new Date(studentInfo.dateOfBirth[0], studentInfo.dateOfBirth[1] - 1, studentInfo.dateOfBirth[2])
+                              : new Date(studentInfo.dateOfBirth);
+                            return format(date, 'dd/MM/yyyy', { locale: vi });
+                          } catch {
+                            return 'N/A';
+                          }
+                        })()}
+                      </p>
+                    </div>
+                  )}
+                  {studentInfo.gender && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Giới tính</label>
+                      <p className="text-sm font-medium mt-1">
+                        {studentInfo.gender === 'MALE' ? 'Nam' : studentInfo.gender === 'FEMALE' ? 'Nữ' : 'Khác'}
+                      </p>
+                    </div>
+                  )}
+                  {studentInfo.phone && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Số điện thoại</label>
+                      <p className="text-sm font-medium mt-1">{studentInfo.phone}</p>
+                    </div>
+                  )}
+                  {studentInfo.address && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Địa chỉ</label>
+                      <p className="text-sm font-medium mt-1">{studentInfo.address}</p>
+                    </div>
+                  )}
+                  {studentInfo.majorName && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Ngành</label>
+                      <p className="text-sm font-medium mt-1">{studentInfo.majorName}</p>
+                    </div>
+                  )}
+                  {studentInfo.facultyName && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Khoa</label>
+                      <p className="text-sm font-medium mt-1">{studentInfo.facultyName}</p>
+                    </div>
+                  )}
+                  {studentInfo.academicYear && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Năm học</label>
+                      <p className="text-sm font-medium mt-1">{studentInfo.academicYear}</p>
+                    </div>
+                  )}
+                  {studentInfo.position && studentInfo.position !== 'NONE' && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Chức vụ</label>
+                      <div className="mt-1">
+                        <Badge variant="default">
+                          {studentInfo.position === 'CLASS_MONITOR' ? 'Lớp trưởng' :
+                           studentInfo.position === 'VICE_MONITOR' ? 'Lớp phó' :
+                           studentInfo.position === 'SECRETARY' ? 'Bí thư' :
+                           studentInfo.position}
+                        </Badge>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader>
@@ -148,7 +260,7 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
 
-            <Card className="md:col-span-2">
+            <Card className="md:col-span-2 lg:col-span-3">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Calendar className="h-5 w-5" />

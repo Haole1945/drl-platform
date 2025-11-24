@@ -474,6 +474,8 @@ public class EvaluationService {
         EvaluationStatus oldStatus = evaluation.getStatus();
         String level = oldStatus.getApprovalLevel();
         
+        // Track which level rejected for smart resubmit
+        evaluation.setLastRejectionLevel(level);
         evaluation.setStatus(EvaluationStatus.REJECTED);
         evaluation.setRejectionReason(reason);
         
@@ -554,7 +556,26 @@ public class EvaluationService {
         }
         
         evaluation.setTotalPoints(totalScore);
-        evaluation.setStatus(EvaluationStatus.SUBMITTED);
+        
+        // Smart resubmit: Return to the level that rejected
+        String lastRejectionLevel = evaluation.getLastRejectionLevel();
+        EvaluationStatus newStatus;
+        
+        if ("CLASS".equals(lastRejectionLevel)) {
+            // Rejected at Class level → Go back to Class
+            newStatus = EvaluationStatus.SUBMITTED;
+        } else if ("FACULTY".equals(lastRejectionLevel)) {
+            // Rejected at Faculty level → Skip Class, go to Faculty
+            newStatus = EvaluationStatus.CLASS_APPROVED;
+        } else if ("CTSV".equals(lastRejectionLevel)) {
+            // Rejected at CTSV level → Skip Class & Faculty, go to CTSV
+            newStatus = EvaluationStatus.FACULTY_APPROVED;
+        } else {
+            // Default: Go to Class level
+            newStatus = EvaluationStatus.SUBMITTED;
+        }
+        
+        evaluation.setStatus(newStatus);
         evaluation.setSubmittedAt(LocalDate.now());
         evaluation.incrementResubmissionCount();
         

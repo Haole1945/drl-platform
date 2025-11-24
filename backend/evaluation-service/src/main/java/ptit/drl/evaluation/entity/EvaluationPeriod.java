@@ -40,6 +40,13 @@ public class EvaluationPeriod {
     @Column(name = "description", columnDefinition = "TEXT")
     private String description; // Mô tả đợt đánh giá
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rubric_id")
+    private Rubric rubric; // Rubric sử dụng cho đợt này
+    
+    @Column(name = "target_classes", columnDefinition = "TEXT")
+    private String targetClasses; // Lớp/khoa/ngành áp dụng (FACULTY:CNTT, MAJOR:DCCN, CLASS:D21DCCN01-N)
+    
     // Constructors
     public EvaluationPeriod() {}
     
@@ -141,6 +148,22 @@ public class EvaluationPeriod {
     
     public void setDescription(String description) {
         this.description = description;
+    }
+    
+    public Rubric getRubric() {
+        return rubric;
+    }
+    
+    public void setRubric(Rubric rubric) {
+        this.rubric = rubric;
+    }
+    
+    public String getTargetClasses() {
+        return targetClasses;
+    }
+    
+    public void setTargetClasses(String targetClasses) {
+        this.targetClasses = targetClasses;
     }
 }
 

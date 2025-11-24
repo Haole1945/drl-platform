@@ -61,6 +61,9 @@ public class Evaluation extends BaseEntity {
     @Column(name = "resubmission_count")
     private Integer resubmissionCount = 0; // Số lần nộp lại sau khi bị reject
     
+    @Column(name = "last_rejection_level", length = 20)
+    private String lastRejectionLevel; // Level that last rejected: CLASS, FACULTY, CTSV
+    
     // Constructors
     public Evaluation() {}
     
@@ -187,6 +190,14 @@ public class Evaluation extends BaseEntity {
         } else {
             this.resubmissionCount++;
         }
+    }
+    
+    public String getLastRejectionLevel() {
+        return lastRejectionLevel;
+    }
+    
+    public void setLastRejectionLevel(String lastRejectionLevel) {
+        this.lastRejectionLevel = lastRejectionLevel;
     }
 }
 

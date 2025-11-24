@@ -29,6 +29,7 @@ public class EvaluationMapper {
         dto.setStatus(evaluation.getStatus() != null ? evaluation.getStatus().name() : null);
         dto.setTotalScore(evaluation.getTotalPoints());
         dto.setRejectionReason(evaluation.getRejectionReason());
+        dto.setLastRejectionLevel(evaluation.getLastRejectionLevel());
         dto.setResubmissionCount(evaluation.getResubmissionCount());
         dto.setSubmittedAt(evaluation.getSubmittedAt());
         dto.setApprovedAt(evaluation.getApprovedAt());

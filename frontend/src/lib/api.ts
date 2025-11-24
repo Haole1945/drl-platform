@@ -376,3 +376,17 @@ export async function getPeriodsByAcademicYear(academicYear: string): Promise<Ap
   return apiClient.get<EvaluationPeriod[]>(`/evaluation-periods/academic-year/${academicYear}`);
 }
 
+
+/**
+ * Get all rubrics
+ */
+export async function getAllRubrics(): Promise<ApiResponse<any[]>> {
+  return apiClient.get<any[]>('/rubrics');
+}
+
+/**
+ * Get rubric by ID
+ */
+export async function getRubricById(id: number): Promise<ApiResponse<any>> {
+  return apiClient.get<any>(`/rubrics/${id}`);
+}

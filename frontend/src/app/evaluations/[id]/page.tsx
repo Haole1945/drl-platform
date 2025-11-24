@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { getEvaluationById, submitEvaluation, approveEvaluation, rejectEvaluation, getActiveRubric, getCriteriaByRubric, deleteEvaluation } from '@/lib/evaluation';
 import { StatusBadge } from '@/components/StatusBadge';
+import { EvaluationHistory } from '@/components/EvaluationHistory';
 import { canApproveClassLevel, canApproveFacultyLevel, canApproveCtsvLevel } from '@/lib/role-utils';
 import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria } from '@/types/evaluation';
 import { Badge } from '@/components/ui/badge';
@@ -323,6 +324,7 @@ export default function EvaluationDetailPage() {
   const canSubmit = isOwner && evaluation.status === 'DRAFT';
   const canDelete = isOwner && evaluation.status === 'DRAFT';
   
+  // Only owner can edit their own evaluation
   const canEdit = isOwner && (
     evaluation.status === 'DRAFT' || 
     evaluation.status === 'REJECTED' ||
@@ -345,7 +347,7 @@ export default function EvaluationDetailPage() {
             <div className="flex flex-col items-end gap-2">
               <StatusBadge status={evaluation.status} />
               <div className="flex items-center gap-2">
-                {(canEdit || (evaluation.status === 'REJECTED') || (canEditInPeriod && (evaluation.status === 'SUBMITTED' || evaluation.status === 'CLASS_APPROVED' || evaluation.status === 'FACULTY_APPROVED'))) && (
+                {canEdit && (
                   <Button variant="outline" size="sm" onClick={() => router.push(`/evaluations/${evaluation.id}/edit`)}>
                     <Edit className="mr-2 h-4 w-4" />
                     {evaluation.status === 'REJECTED' ? 'Chỉnh sửa & Nộp lại' : 'Chỉnh sửa'}
@@ -570,6 +572,12 @@ export default function EvaluationDetailPage() {
               ))}
             </CardContent>
           </Card>
+
+          {/* History Component */}
+          <EvaluationHistory 
+            history={evaluation.history || []} 
+            resubmissionCount={evaluation.resubmissionCount}
+          />
 
           <div className="flex gap-4 justify-end">
             {canSubmit && (

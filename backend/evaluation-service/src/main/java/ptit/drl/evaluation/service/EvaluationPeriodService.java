@@ -114,6 +114,8 @@ public class EvaluationPeriodService {
         period.setEndDate(updatedPeriod.getEndDate());
         period.setIsActive(updatedPeriod.getIsActive());
         period.setDescription(updatedPeriod.getDescription());
+        period.setRubric(updatedPeriod.getRubric());
+        period.setTargetClasses(updatedPeriod.getTargetClasses());
         return periodRepository.save(period);
     }
     
@@ -140,6 +142,89 @@ public class EvaluationPeriodService {
     @Transactional(readOnly = true)
     public List<EvaluationPeriod> getPeriodsBySemester(String semester) {
         return periodRepository.findBySemester(semester);
+    }
+    
+    /**
+     * Get open period for specific class code
+     * Filters by targetClasses to find matching period
+     */
+    @Transactional(readOnly = true)
+    public Optional<EvaluationPeriod> getOpenPeriodForClass(String classCode) {
+        Optional<EvaluationPeriod> openPeriod = getOpenPeriod();
+        
+        if (openPeriod.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        EvaluationPeriod period = openPeriod.get();
+        
+        // If no target specified, period applies to all
+        if (period.getTargetClasses() == null || period.getTargetClasses().isEmpty()) {
+            return openPeriod;
+        }
+        
+        // Check if classCode matches target
+        if (matchesTarget(classCode, period.getTargetClasses())) {
+            return openPeriod;
+        }
+        
+        return Optional.empty();
+    }
+    
+    /**
+     * Check if classCode matches target specification
+     * Supports FACULTY:, MAJOR:, CLASS: prefixes
+     */
+    private boolean matchesTarget(String classCode, String targetClasses) {
+        if (targetClasses == null || targetClasses.isEmpty()) {
+            return true;
+        }
+        
+        String target = targetClasses.trim();
+        
+        // FACULTY: prefix
+        if (target.startsWith("FACULTY:")) {
+            String facultyCodes = target.substring(8).trim();
+            if (facultyCodes.isEmpty()) return true;
+            
+            String[] faculties = facultyCodes.split(",");
+            for (String faculty : faculties) {
+                if (classCode.toUpperCase().contains(faculty.trim().toUpperCase())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // MAJOR: prefix
+        if (target.startsWith("MAJOR:")) {
+            String majorCodes = target.substring(6).trim();
+            if (majorCodes.isEmpty()) return true;
+            
+            String[] majors = majorCodes.split(",");
+            for (String major : majors) {
+                if (classCode.toUpperCase().contains(major.trim().toUpperCase())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        // CLASS: prefix or legacy format
+        String classCodes = target.startsWith("CLASS:") 
+            ? target.substring(6).trim() 
+            : target;
+        
+        if (classCodes.isEmpty()) return true;
+        
+        String[] classes = classCodes.split(",");
+        for (String targetClass : classes) {
+            if (targetClass.trim().equalsIgnoreCase(classCode.trim())) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 }
 

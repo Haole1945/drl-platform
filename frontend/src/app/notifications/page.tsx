@@ -157,13 +157,29 @@ export default function NotificationsPage() {
                             </p>
                             <div className="flex items-center gap-4 text-xs text-muted-foreground">
                               <span>
-                                {format(new Date(notification.createdAt), "dd/MM/yyyy 'lúc' HH:mm", { locale: vi })}
+                                {(() => {
+                                  try {
+                                    const date = new Date(notification.createdAt);
+                                    if (isNaN(date.getTime())) return 'N/A';
+                                    return format(date, "dd/MM/yyyy 'lúc' HH:mm", { locale: vi });
+                                  } catch {
+                                    return 'N/A';
+                                  }
+                                })()}
                               </span>
                               <span>
-                                {formatDistanceToNow(new Date(notification.createdAt), {
-                                  addSuffix: true,
-                                  locale: vi,
-                                })}
+                                {(() => {
+                                  try {
+                                    const date = new Date(notification.createdAt);
+                                    if (isNaN(date.getTime())) return 'Vừa xong';
+                                    return formatDistanceToNow(date, {
+                                      addSuffix: true,
+                                      locale: vi,
+                                    });
+                                  } catch {
+                                    return 'Vừa xong';
+                                  }
+                                })()}
                               </span>
                             </div>
                           </div>

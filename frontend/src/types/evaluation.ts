@@ -30,6 +30,18 @@ export interface CriteriaWithSubCriteria {
   totalScore: number; // Auto-calculated sum of sub-criteria scores
 }
 
+export interface EvaluationHistory {
+  id: number;
+  action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED';
+  fromStatus: string;
+  toStatus: string;
+  level?: string;
+  actorId?: number;
+  actorName?: string;
+  comment?: string;
+  createdAt: string;
+}
+
 export interface EvaluationDetail {
   id?: number;
   criteriaId: number;
@@ -62,9 +74,11 @@ export interface Evaluation {
   submittedAt?: string;
   approvedAt?: string;
   resubmissionCount?: number;
+  lastRejectionLevel?: string;
   rubricId: number;
   rubricName?: string;
   details: EvaluationDetail[];
+  history?: EvaluationHistory[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -126,6 +140,9 @@ export interface EvaluationPeriod {
   endDate: string | number[]; // Can be ISO string or LocalDate array [year, month, day]
   isActive: boolean;
   description?: string;
+  rubricId?: number; // Rubric used for this period
+  rubricName?: string; // Rubric name (for display)
+  targetClasses?: string; // Target classes/faculties/majors (FACULTY:CNTT, MAJOR:DCCN, CLASS:D21DCCN01-N)
   isOpen?: boolean;
   isFuture?: boolean;
   isEnded?: boolean;
@@ -138,6 +155,8 @@ export interface CreateEvaluationPeriodRequest {
   startDate: string; // ISO date string (YYYY-MM-DD)
   endDate: string; // ISO date string (YYYY-MM-DD)
   description?: string;
+  rubricId?: number; // Rubric to use for this period
+  targetClasses?: string; // Target specification
   isActive?: boolean;
 }
 
@@ -148,5 +167,7 @@ export interface UpdateEvaluationPeriodRequest {
   startDate?: string; // ISO date string (YYYY-MM-DD)
   endDate?: string; // ISO date string (YYYY-MM-DD)
   description?: string;
+  rubricId?: number; // Rubric to use for this period
+  targetClasses?: string; // Target specification
   isActive?: boolean;
 }

@@ -15,7 +15,8 @@ import {
   getAllEvaluationPeriods, 
   createEvaluationPeriod, 
   updateEvaluationPeriod, 
-  deactivateEvaluationPeriod 
+  deactivateEvaluationPeriod,
+  getAllRubrics
 } from '@/lib/api';
 import type { EvaluationPeriod, CreateEvaluationPeriodRequest, UpdateEvaluationPeriodRequest } from '@/types/evaluation';
 import { Loader2, Plus, Edit, Trash2, Calendar } from 'lucide-react';
@@ -38,6 +39,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
+import { RubricTargetSelector } from '../system-config/components/RubricTargetSelector';
+import type { Rubric } from '@/types/evaluation';
 
 export default function EvaluationPeriodsPage() {
   const { user } = useAuth();
@@ -45,6 +48,7 @@ export default function EvaluationPeriodsPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [periods, setPeriods] = useState<EvaluationPeriod[]>([]);
+  const [rubrics, setRubrics] = useState<Rubric[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -59,6 +63,8 @@ export default function EvaluationPeriodsPage() {
     startDate: '',
     endDate: '',
     description: '',
+    rubricId: undefined,
+    targetClasses: '',
     isActive: true,
   });
 
@@ -70,6 +76,7 @@ export default function EvaluationPeriodsPage() {
     }
 
     loadPeriods();
+    loadRubrics();
   }, [user, router]);
 
   const loadPeriods = async () => {
@@ -87,6 +94,17 @@ export default function EvaluationPeriodsPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRubrics = async () => {
+    try {
+      const response = await getAllRubrics();
+      if (response.success && response.data) {
+        setRubrics(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load rubrics:', error);
     }
   };
 
@@ -112,6 +130,8 @@ export default function EvaluationPeriodsPage() {
       startDate: parseDate(period.startDate as any), // Parse date (can be string or array)
       endDate: parseDate(period.endDate as any),
       description: period.description || '',
+      rubricId: period.rubricId,
+      targetClasses: period.targetClasses || '',
       isActive: period.isActive,
     });
     setIsEditDialogOpen(true);
@@ -193,6 +213,8 @@ export default function EvaluationPeriodsPage() {
         startDate: formData.startDate,
         endDate: formData.endDate,
         description: formData.description,
+        rubricId: formData.rubricId,
+        targetClasses: formData.targetClasses,
         isActive: formData.isActive || false,
       };
       const response = await updateEvaluationPeriod(selectedPeriod.id, updateRequest);
@@ -455,6 +477,29 @@ export default function EvaluationPeriodsPage() {
                     rows={3}
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rubricId">Rubric *</Label>
+                  <select
+                    id="rubricId"
+                    value={formData.rubricId || ''}
+                    onChange={(e) => setFormData({ ...formData, rubricId: e.target.value ? Number(e.target.value) : undefined })}
+                    className="w-full border rounded-md p-2"
+                  >
+                    <option value="">-- Chọn rubric --</option>
+                    {rubrics.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lớp áp dụng</Label>
+                  <RubricTargetSelector
+                    value={formData.targetClasses || ''}
+                    onChange={(v) => setFormData({ ...formData, targetClasses: v })}
+                  />
+                </div>
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -549,6 +594,29 @@ export default function EvaluationPeriodsPage() {
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows={3}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rubricId">Rubric *</Label>
+                  <select
+                    id="edit-rubricId"
+                    value={formData.rubricId || ''}
+                    onChange={(e) => setFormData({ ...formData, rubricId: e.target.value ? Number(e.target.value) : undefined })}
+                    className="w-full border rounded-md p-2"
+                  >
+                    <option value="">-- Chọn rubric --</option>
+                    {rubrics.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lớp áp dụng</Label>
+                  <RubricTargetSelector
+                    value={formData.targetClasses || ''}
+                    onChange={(v) => setFormData({ ...formData, targetClasses: v })}
                   />
                 </div>
                 <div className="flex items-center space-x-2">

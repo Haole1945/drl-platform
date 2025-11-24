@@ -27,9 +27,22 @@ public class EvaluationPeriodController {
     
     /**
      * GET /evaluation-periods/open - Get currently open period (public)
+     * Optional classCode parameter to filter by target classes
      */
     @GetMapping("/open")
-    public ResponseEntity<ApiResponse<EvaluationPeriodDTO>> getOpenPeriod() {
+    public ResponseEntity<ApiResponse<EvaluationPeriodDTO>> getOpenPeriod(
+            @RequestParam(required = false) String classCode) {
+        
+        if (classCode != null && !classCode.isEmpty()) {
+            // Get period for specific class
+            return periodService.getOpenPeriodForClass(classCode)
+                    .map(period -> ResponseEntity.ok(
+                        ApiResponse.success("Đợt đánh giá đang mở", EvaluationPeriodMapper.toDTO(period))))
+                    .orElse(ResponseEntity.ok(
+                        ApiResponse.success("Không có đợt đánh giá nào áp dụng cho lớp này", null)));
+        }
+        
+        // Get any open period
         return periodService.getOpenPeriod()
                 .map(period -> ResponseEntity.ok(
                     ApiResponse.success("Đợt đánh giá đang mở", EvaluationPeriodMapper.toDTO(period))))

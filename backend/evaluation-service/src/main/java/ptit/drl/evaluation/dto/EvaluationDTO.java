@@ -22,7 +22,9 @@ public class EvaluationDTO {
     private Double maxScore;
     private List<EvaluationDetailDTO> details;
     private List<EvaluationHistoryDTO> approvalHistory;
+    private List<EvaluationHistoryDTO> history; // Alias for approvalHistory (for frontend compatibility)
     private String rejectionReason;
+    private String lastRejectionLevel;
     private Integer resubmissionCount;
     private LocalDate submittedAt;
     private LocalDate approvedAt;
@@ -143,6 +145,16 @@ public class EvaluationDTO {
     
     public void setApprovalHistory(List<EvaluationHistoryDTO> approvalHistory) {
         this.approvalHistory = approvalHistory;
+        this.history = approvalHistory; // Keep in sync
+    }
+    
+    public List<EvaluationHistoryDTO> getHistory() {
+        return history != null ? history : approvalHistory;
+    }
+    
+    public void setHistory(List<EvaluationHistoryDTO> history) {
+        this.history = history;
+        this.approvalHistory = history; // Keep in sync
     }
     
     public String getRejectionReason() {
@@ -151,6 +163,14 @@ public class EvaluationDTO {
     
     public void setRejectionReason(String rejectionReason) {
         this.rejectionReason = rejectionReason;
+    }
+    
+    public String getLastRejectionLevel() {
+        return lastRejectionLevel;
+    }
+    
+    public void setLastRejectionLevel(String lastRejectionLevel) {
+        this.lastRejectionLevel = lastRejectionLevel;
     }
     
     public Integer getResubmissionCount() {

@@ -26,9 +26,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { hasAnyRole } from '@/lib/role-utils';
 
 export default function StudentsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  // Helper to check if user is CLASS_MONITOR only (not other roles)
+  const isClassMonitorOnly = () => {
+    return user && hasAnyRole(user, ['CLASS_MONITOR']) && !hasAnyRole(user, ['ADMIN', 'INSTRUCTOR', 'FACULTY_INSTRUCTOR', 'ADVISOR', 'CTSV_STAFF']);
+  };
+  
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -51,12 +60,17 @@ export default function StudentsPage() {
   const loadStudents = async () => {
     setLoading(true);
     try {
+      // If user is CLASS_MONITOR, force filter by their classCode
+      const effectiveClassCode = isClassMonitorOnly() && user?.classCode 
+        ? user.classCode 
+        : (classCode && classCode !== 'all' ? classCode : undefined);
+      
       const response = await getStudents({
         page,
         size,
         facultyCode: facultyCode && facultyCode !== 'all' ? facultyCode : undefined,
         majorCode: majorCode && majorCode !== 'all' ? majorCode : undefined,
-        classCode: classCode && classCode !== 'all' ? classCode : undefined,
+        classCode: effectiveClassCode,
       });
       
       if (response.success && response.data) {
@@ -200,6 +214,13 @@ export default function StudentsPage() {
     }
   }, [majorCode]);
 
+  // Auto-set classCode for CLASS_MONITOR
+  useEffect(() => {
+    if (isClassMonitorOnly() && user?.classCode && classCode === 'all') {
+      setClassCode(user.classCode);
+    }
+  }, [user]);
+
   useEffect(() => {
     loadStudents();
   }, [page, size, facultyCode, majorCode, classCode]);
@@ -221,7 +242,7 @@ export default function StudentsPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'INSTRUCTOR', 'FACULTY_INSTRUCTOR', 'ADVISOR', 'CTSV_STAFF']}>
+    <ProtectedRoute allowedRoles={['ADMIN', 'INSTRUCTOR', 'FACULTY_INSTRUCTOR', 'ADVISOR', 'CTSV_STAFF', 'CLASS_MONITOR']}>
       <DashboardLayout>
         <div className="space-y-6">
           <div>
@@ -234,6 +255,11 @@ export default function StudentsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Tìm kiếm và Lọc</CardTitle>
+              {isClassMonitorOnly() && (
+                <CardDescription>
+                  Bạn chỉ có thể xem sinh viên trong lớp {user?.classCode}
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
@@ -252,7 +278,7 @@ export default function StudentsPage() {
                     setMajorCode('all');
                     setClassCode('all');
                   }}
-                  disabled={loadingFaculties}
+                  disabled={loadingFaculties || isClassMonitorOnly()}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={loadingFaculties ? "Đang tải..." : "Tất cả Khoa"} />
@@ -275,7 +301,7 @@ export default function StudentsPage() {
                     setMajorCode(value);
                     setClassCode('all');
                   }}
-                  disabled={facultyCode === 'all' || loadingMajors}
+                  disabled={facultyCode === 'all' || loadingMajors || isClassMonitorOnly()}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={loadingMajors ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Ngành"} />
@@ -295,7 +321,7 @@ export default function StudentsPage() {
                 <Select 
                   value={classCode} 
                   onValueChange={setClassCode}
-                  disabled={facultyCode === 'all' || loadingClasses}
+                  disabled={facultyCode === 'all' || loadingClasses || isClassMonitorOnly()}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={loadingClasses ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Lớp"} />

@@ -159,10 +159,20 @@ export function NotificationBell() {
                           {notification.message}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(notification.createdAt), {
-                            addSuffix: true,
-                            locale: vi,
-                          })}
+                          {(() => {
+                            try {
+                              const date = new Date(notification.createdAt);
+                              if (isNaN(date.getTime())) {
+                                return 'Vừa xong';
+                              }
+                              return formatDistanceToNow(date, {
+                                addSuffix: true,
+                                locale: vi,
+                              });
+                            } catch {
+                              return 'Vừa xong';
+                            }
+                          })()}
                         </div>
                       </div>
                       {!notification.isRead && (

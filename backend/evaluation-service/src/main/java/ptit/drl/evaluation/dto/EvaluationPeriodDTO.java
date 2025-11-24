@@ -21,6 +21,9 @@ public class EvaluationPeriodDTO {
     private LocalDate endDate;
     private Boolean isActive;
     private String description;
+    private Long rubricId; // ID of rubric used for this period
+    private String rubricName; // Name of rubric (for display)
+    private String targetClasses; // Target classes/faculties/majors
     
     // Computed fields
     private Boolean isOpen; // Whether period is currently open

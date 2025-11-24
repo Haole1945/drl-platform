@@ -139,15 +139,16 @@ export function FileUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sync files with existingFiles when it changes
+  // Use JSON.stringify to avoid infinite loop from array reference changes
   useEffect(() => {
-    // Always sync, even if existingFiles is empty (to clear files)
     const filesWithIds = existingFiles.map((file, index) => ({
       ...file,
-      id: file.id || Date.now() + index + Math.random(), // Generate unique ID if missing
+      id: file.id || Date.now() + index + Math.random(),
     }));
     
     setFiles(filesWithIds);
-  }, [existingFiles, criteriaId, subCriteriaId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(existingFiles), criteriaId, subCriteriaId]);
 
   const allowedTypes = {
     image: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
