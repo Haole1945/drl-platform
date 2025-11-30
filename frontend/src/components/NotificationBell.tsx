@@ -90,7 +90,15 @@ export function NotificationBell() {
       return '/evaluations/new';
     }
     if (notification.relatedType === 'EVALUATION' && notification.relatedId) {
+      // For reviewers - link to approvals page
+      if (notification.type === 'EVALUATION_NEEDS_REVIEW' || notification.type === 'EVALUATION_ESCALATED') {
+        return '/approvals';
+      }
+      // For students - link to evaluation detail
       return `/evaluations/${notification.relatedId}`;
+    }
+    if (notification.relatedType === 'RUBRIC' && notification.relatedId) {
+      return '/training-points';
     }
     return null;
   };

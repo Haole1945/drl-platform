@@ -152,12 +152,24 @@ public class Notification {
      * Notification types
      */
     public enum NotificationType {
+        // Period notifications
         PERIOD_CREATED,      // Đợt đánh giá được tạo
         PERIOD_REMINDER,     // Nhắc nhở sắp hết hạn
         PERIOD_ENDING,       // Đợt đánh giá sắp kết thúc
-        EVALUATION_SUBMITTED, // Đánh giá đã được nộp
-        EVALUATION_APPROVED,  // Đánh giá đã được duyệt
-        EVALUATION_REJECTED   // Đánh giá bị từ chối
+        
+        // Evaluation notifications - Student
+        EVALUATION_SUBMITTED, // Đánh giá đã được nộp (cho student)
+        EVALUATION_APPROVED,  // Đánh giá đã được duyệt (cho student)
+        EVALUATION_REJECTED,  // Đánh giá bị từ chối (cho student)
+        EVALUATION_RETURNED,  // Đánh giá cần chỉnh sửa (cho student)
+        
+        // Evaluation notifications - Reviewers
+        EVALUATION_NEEDS_REVIEW, // Có đánh giá mới cần duyệt (cho reviewers)
+        EVALUATION_ESCALATED,    // Đánh giá được chuyển lên cấp cao hơn (cho reviewers)
+        
+        // Rubric notifications
+        RUBRIC_ACTIVATED,    // Rubric mới được kích hoạt
+        RUBRIC_UPDATED       // Rubric được cập nhật
     }
 }
 

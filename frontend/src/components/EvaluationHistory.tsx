@@ -1,11 +1,12 @@
 "use client";
 
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { format } from 'date-fns';
-import { vi } from 'date-fns/locale/vi';
-import { AlertCircle, CheckCircle, Clock, RotateCcw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { formatDateTime } from '@/lib/date-utils';
+import { AlertCircle, CheckCircle, Clock, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react';
 import type { EvaluationHistory } from '@/types/evaluation';
 
 interface EvaluationHistoryProps {
@@ -14,28 +15,60 @@ interface EvaluationHistoryProps {
 }
 
 export function EvaluationHistory({ history, resubmissionCount }: EvaluationHistoryProps) {
+  const [showAll, setShowAll] = useState(false);
+
   if (!history || history.length === 0) {
     return null;
   }
 
-  // Filter and sort history
-  const rejectionHistory = history
-    .filter(item => item.action === 'REJECTED' || item.action === 'RESUBMITTED')
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // Helper to convert timestamp to Date
+  const toDate = (dateValue?: string | number[]): Date => {
+    if (!dateValue) return new Date(0);
+    if (Array.isArray(dateValue)) {
+      const [year, month, day, hour = 0, minute = 0, second = 0] = dateValue;
+      // Backend stores in Vietnam timezone, create date directly
+      // Month is 1-based in Java but 0-based in JavaScript
+      return new Date(year, month - 1, day, hour, minute, second);
+    }
+    return new Date(dateValue);
+  };
 
-  if (rejectionHistory.length === 0) {
+  // Filter and sort history
+  const allHistory = history
+    .filter(item => item.action === 'REJECTED' || item.action === 'RESUBMITTED')
+    .sort((a, b) => {
+      const dateA = toDate(a.timestamp || a.createdAt).getTime();
+      const dateB = toDate(b.timestamp || b.createdAt).getTime();
+      return dateB - dateA;
+    });
+
+  if (allHistory.length === 0) {
     return null;
   }
 
-  const formatDate = (dateStr: string) => {
-    try {
-      const date = new Date(dateStr);
-      if (isNaN(date.getTime())) return 'N/A';
-      return format(date, "dd/MM/yyyy 'lúc' HH:mm", { locale: vi });
-    } catch {
-      return 'N/A';
+  // Get only the latest rejection/resubmit pair
+  const latestItems: typeof allHistory = [];
+  const latest = allHistory[0];
+  
+  if (latest.action === 'RESUBMITTED') {
+    // If latest is resubmit, find the rejection before it
+    latestItems.push(latest);
+    const rejection = allHistory.find((item, idx) => idx > 0 && item.action === 'REJECTED');
+    if (rejection) {
+      latestItems.push(rejection);
     }
-  };
+  } else if (latest.action === 'REJECTED') {
+    // If latest is rejection, check if there's a resubmit after it
+    latestItems.push(latest);
+    // No resubmit yet, just show rejection
+  }
+
+  // Show latest or all based on toggle
+  const rejectionHistory = showAll ? allHistory : latestItems;
+  const hasMore = allHistory.length > latestItems.length;
+
+  // Use shared date utility for consistent formatting
+  const formatDate = formatDateTime;
 
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -75,13 +108,41 @@ export function EvaluationHistory({ history, resubmissionCount }: EvaluationHist
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertCircle className="h-5 w-5 text-orange-600" />
-          Lịch sử Từ chối & Nộp lại
-        </CardTitle>
-        <CardDescription>
-          {resubmissionCount ? `Đã nộp lại ${resubmissionCount} lần` : 'Lịch sử các lần từ chối và nộp lại'}
-        </CardDescription>
+        <div className="flex items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-orange-600" />
+              Lịch sử Từ chối & Nộp lại
+            </CardTitle>
+            <CardDescription>
+              {showAll 
+                ? `Tất cả lịch sử (${allHistory.length} sự kiện)`
+                : resubmissionCount && resubmissionCount > 0 
+                  ? `Lần gần nhất (Tổng: ${resubmissionCount} lần nộp lại)` 
+                  : 'Lần từ chối gần nhất'}
+            </CardDescription>
+          </div>
+          {hasMore && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAll(!showAll)}
+              className="flex items-center gap-1"
+            >
+              {showAll ? (
+                <>
+                  <ChevronUp className="h-4 w-4" />
+                  Thu gọn
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-4 w-4" />
+                  Xem tất cả ({allHistory.length})
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -109,7 +170,7 @@ export function EvaluationHistory({ history, resubmissionCount }: EvaluationHist
                           {item.level && getLevelBadge(item.level)}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {formatDate(item.createdAt)}
+                          {formatDate(item.timestamp || item.createdAt)}
                         </div>
                       </div>
                       
@@ -136,16 +197,6 @@ export function EvaluationHistory({ history, resubmissionCount }: EvaluationHist
             </div>
           ))}
         </div>
-        
-        {/* Summary */}
-        {resubmissionCount && resubmissionCount > 0 && (
-          <div className="mt-6 pt-4 border-t">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle className="h-4 w-4" />
-              <span>Tổng cộng đã nộp lại {resubmissionCount} lần</span>
-            </div>
-          </div>
-        )}
       </CardContent>
     </Card>
   );

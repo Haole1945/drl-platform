@@ -23,6 +23,9 @@ public class RubricService {
     @Autowired
     private RubricRepository rubricRepository;
     
+    @Autowired(required = false)
+    private NotificationService notificationService;
+    
     /**
      * Get all rubrics
      */
@@ -166,6 +169,20 @@ public class RubricService {
         
         rubric.setIsActive(true);
         Rubric updated = rubricRepository.save(rubric);
+        
+        // Send notification to all users
+        if (notificationService != null) {
+            try {
+                notificationService.notifyRubricActivated(
+                    updated.getId(),
+                    updated.getName(),
+                    updated.getTargetClasses()
+                );
+            } catch (Exception e) {
+                System.err.println("Failed to create rubric activation notification: " + e.getMessage());
+            }
+        }
+        
         return RubricMapper.toDTOWithoutCriteria(updated);
     }
     

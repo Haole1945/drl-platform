@@ -31,15 +31,16 @@ export interface CriteriaWithSubCriteria {
 }
 
 export interface EvaluationHistory {
-  id: number;
-  action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED';
-  fromStatus: string;
-  toStatus: string;
+  id?: number;
+  action: 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'RESUBMITTED' | 'CREATED';
+  fromStatus?: string;
+  toStatus?: string;
   level?: string;
   actorId?: number;
   actorName?: string;
   comment?: string;
-  createdAt: string;
+  timestamp?: string | number[]; // Backend uses this - can be ISO string or Java LocalDateTime array
+  createdAt?: string | number[]; // Alias for timestamp
 }
 
 export interface EvaluationDetail {
@@ -71,16 +72,20 @@ export interface Evaluation {
   status: EvaluationStatus;
   rejectionReason?: string;
   appealReason?: string;
-  submittedAt?: string;
-  approvedAt?: string;
+  submittedAt?: string | number[]; // Can be ISO string or Java LocalDate array
+  approvedAt?: string | number[]; // Can be ISO string or Java LocalDate array
   resubmissionCount?: number;
   lastRejectionLevel?: string;
   rubricId: number;
   rubricName?: string;
   details: EvaluationDetail[];
-  history?: EvaluationHistory[];
+  approvalHistory?: EvaluationHistory[]; // Backend uses this name
+  history?: EvaluationHistory[]; // Alias for approvalHistory
   createdAt?: string;
   updatedAt?: string;
+  createdBy?: number; // User ID who created this evaluation
+  createdByName?: string; // Name of user who created (populated from auth-service if needed)
+  isCreatedByAdmin?: boolean; // True if created by admin, false if created by student
 }
 
 export interface CreateEvaluationRequest {

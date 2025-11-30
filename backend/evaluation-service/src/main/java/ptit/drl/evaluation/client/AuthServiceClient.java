@@ -32,6 +32,23 @@ public interface AuthServiceClient {
     UserIdResponse getUserIdByStudentCode(@PathVariable String studentCode);
     
     /**
+     * Get user IDs by role (for notifications)
+     * @param roleName Role name (e.g., CLASS_MONITOR, ADVISOR, FACULTY_INSTRUCTOR)
+     * @return User IDs response
+     */
+    @GetMapping("/users/role/{roleName}")
+    UserIdsResponse getUserIdsByRole(@PathVariable String roleName);
+    
+    /**
+     * Get user IDs by role and class code (for notifications)
+     * @param roleName Role name (e.g., CLASS_MONITOR, ADVISOR)
+     * @param classCode Class code (e.g., D21DCCN01-N)
+     * @return User IDs response
+     */
+    @GetMapping("/users/role/{roleName}/class/{classCode}")
+    UserIdsResponse getUserIdsByRoleAndClassCode(@PathVariable String roleName, @PathVariable String classCode);
+    
+    /**
      * Response wrapper for user IDs
      */
     @JsonIgnoreProperties(ignoreUnknown = true)

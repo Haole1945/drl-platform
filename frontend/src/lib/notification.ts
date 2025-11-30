@@ -24,7 +24,12 @@ export type NotificationType =
   | 'PERIOD_ENDING'
   | 'EVALUATION_SUBMITTED'
   | 'EVALUATION_APPROVED'
-  | 'EVALUATION_REJECTED';
+  | 'EVALUATION_REJECTED'
+  | 'EVALUATION_RETURNED'
+  | 'EVALUATION_NEEDS_REVIEW'
+  | 'EVALUATION_ESCALATED'
+  | 'RUBRIC_ACTIVATED'
+  | 'RUBRIC_UPDATED';
 
 export interface NotificationPage {
   content: Notification[];

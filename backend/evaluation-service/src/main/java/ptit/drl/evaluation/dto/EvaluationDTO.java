@@ -30,6 +30,9 @@ public class EvaluationDTO {
     private LocalDate approvedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long createdBy; // User ID who created this evaluation
+    private String createdByName; // Name of user who created (populated from auth-service if needed)
+    private Boolean isCreatedByAdmin; // True if created by admin, false if created by student
     
     // Constructors
     public EvaluationDTO() {}
@@ -211,6 +214,30 @@ public class EvaluationDTO {
     
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+    
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+    
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
+    }
+    
+    public String getCreatedByName() {
+        return createdByName;
+    }
+    
+    public void setCreatedByName(String createdByName) {
+        this.createdByName = createdByName;
+    }
+    
+    public Boolean getIsCreatedByAdmin() {
+        return isCreatedByAdmin;
+    }
+    
+    public void setIsCreatedByAdmin(Boolean isCreatedByAdmin) {
+        this.isCreatedByAdmin = isCreatedByAdmin;
     }
 }
 

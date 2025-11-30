@@ -64,6 +64,9 @@ public class Evaluation extends BaseEntity {
     @Column(name = "last_rejection_level", length = 20)
     private String lastRejectionLevel; // Level that last rejected: CLASS, FACULTY, CTSV
     
+    @Column(name = "created_by")
+    private Long createdBy; // User ID who created this evaluation (null if student, set if admin)
+    
     // Constructors
     public Evaluation() {}
     
@@ -198,6 +201,14 @@ public class Evaluation extends BaseEntity {
     
     public void setLastRejectionLevel(String lastRejectionLevel) {
         this.lastRejectionLevel = lastRejectionLevel;
+    }
+    
+    public Long getCreatedBy() {
+        return createdBy;
+    }
+    
+    public void setCreatedBy(Long createdBy) {
+        this.createdBy = createdBy;
     }
 }
 

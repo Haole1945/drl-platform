@@ -8,7 +8,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import ptit.drl.evaluation.config.SecurityConfig;
 import ptit.drl.evaluation.dto.*;
 import ptit.drl.evaluation.service.EvaluationService;
 
@@ -49,7 +52,7 @@ public class EvaluationController {
         
         // TODO: Get all evaluations with pagination
         return ResponseEntity.ok(
-            ApiResponse.success("Feature not implemented yet", Page.empty()));
+            ApiResponse.success("Feature not implemented yet", Page.empty(pageable)));
     }
     
     /**
@@ -65,13 +68,31 @@ public class EvaluationController {
     
     /**
      * POST /evaluations - Create new evaluation (DRAFT)
-     * Only students, class monitors, and union representatives can create evaluations
+     * Students, class monitors, union representatives, and admins can create evaluations
+     * Admin can create evaluations on behalf of students
      */
     @PostMapping
-    @PreAuthorize("hasRole('STUDENT') or hasRole('CLASS_MONITOR') or hasRole('UNION_REPRESENTATIVE')")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('CLASS_MONITOR') or hasRole('UNION_REPRESENTATIVE') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> createEvaluation(
             @Valid @RequestBody CreateEvaluationRequest request) {
-        EvaluationDTO evaluation = evaluationService.createEvaluation(request);
+        
+        // Get current user from SecurityContext
+        Long createdBy = null;
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getDetails() instanceof Long) {
+            Long userId = (Long) authentication.getDetails();
+            
+            // Only set createdBy if user is ADMIN (students create their own, so createdBy is null)
+            // Check if user has ADMIN role
+            boolean isAdmin = authentication.getAuthorities().stream()
+                    .anyMatch(auth -> auth.getAuthority().equals("ROLE_ADMIN"));
+            if (isAdmin) {
+                createdBy = userId; // Admin creates evaluation, so set createdBy
+            }
+            // If not admin, createdBy remains null (student creates their own evaluation)
+        }
+        
+        EvaluationDTO evaluation = evaluationService.createEvaluation(request, createdBy);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success("Evaluation created successfully", evaluation));
     }

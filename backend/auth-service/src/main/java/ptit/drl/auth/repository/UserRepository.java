@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -37,4 +38,17 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     @EntityGraph(attributePaths = {"roles", "roles.permissions"})
     @Query("SELECT u FROM User u WHERE u.studentCode = :studentCode")
     Optional<User> findByStudentCode(@Param("studentCode") String studentCode);
+    
+    // Find user IDs by role (for notifications)
+    @Query("SELECT DISTINCT u.id FROM User u JOIN u.roles r WHERE r.name = :roleName AND u.isActive = true")
+    List<Long> findUserIdsByRole(@Param("roleName") String roleName);
+    
+    // Find user IDs by role and class code (for notifications)
+    @Query("SELECT DISTINCT u.id FROM User u JOIN u.roles r WHERE r.name = :roleName AND u.classCode = :classCode AND u.isActive = true")
+    List<Long> findUserIdsByRoleAndClassCode(@Param("roleName") String roleName, @Param("classCode") String classCode);
+    
+    // Find user IDs by role and faculty code (for notifications) - need to join with student-service
+    // For now, we'll use classCode matching (faculty can be inferred from classCode)
+    @Query("SELECT DISTINCT u.id FROM User u JOIN u.roles r WHERE r.name = :roleName AND u.isActive = true")
+    List<Long> findUserIdsByRoleForFaculty(@Param("roleName") String roleName);
 }

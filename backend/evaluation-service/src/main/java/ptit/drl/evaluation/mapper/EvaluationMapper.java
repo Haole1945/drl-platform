@@ -35,6 +35,10 @@ public class EvaluationMapper {
         dto.setApprovedAt(evaluation.getApprovedAt());
         dto.setCreatedAt(evaluation.getCreatedAt());
         dto.setUpdatedAt(evaluation.getUpdatedAt());
+        dto.setCreatedBy(evaluation.getCreatedBy());
+        // createdByName will be populated from auth-service if needed
+        // isCreatedByAdmin will be determined based on createdBy (if not null, likely admin)
+        dto.setIsCreatedByAdmin(evaluation.getCreatedBy() != null);
         
         // Student info (name, faculty, class) will be populated from student-service if needed
         // For now, leave them null or empty

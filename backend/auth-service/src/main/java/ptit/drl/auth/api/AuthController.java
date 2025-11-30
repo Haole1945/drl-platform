@@ -128,6 +128,28 @@ public class AuthController {
     }
     
     /**
+     * GET /auth/users/role/{roleName} - Get user IDs by role (for notifications)
+     * Internal use only - for evaluation-service to send notifications
+     */
+    @GetMapping("/users/role/{roleName}")
+    public ResponseEntity<ApiResponse<java.util.List<Long>>> getUserIdsByRole(@PathVariable String roleName) {
+        java.util.List<Long> userIds = authService.getUserIdsByRole(roleName);
+        return ResponseEntity.ok(ApiResponse.success("User IDs retrieved", userIds));
+    }
+    
+    /**
+     * GET /auth/users/role/{roleName}/class/{classCode} - Get user IDs by role and class code (for notifications)
+     * Internal use only - for evaluation-service to send notifications
+     */
+    @GetMapping("/users/role/{roleName}/class/{classCode}")
+    public ResponseEntity<ApiResponse<java.util.List<Long>>> getUserIdsByRoleAndClassCode(
+            @PathVariable String roleName, 
+            @PathVariable String classCode) {
+        java.util.List<Long> userIds = authService.getUserIdsByRoleAndClassCode(roleName, classCode);
+        return ResponseEntity.ok(ApiResponse.success("User IDs retrieved", userIds));
+    }
+    
+    /**
      * POST /auth/change-password - Change user password
      */
     @PostMapping("/change-password")

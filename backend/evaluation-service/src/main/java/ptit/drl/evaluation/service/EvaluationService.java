@@ -58,8 +58,10 @@ public class EvaluationService {
     /**
      * Create new evaluation (DRAFT status)
      * Validates student exists via student-service
+     * @param request The evaluation creation request
+     * @param createdBy User ID who created this evaluation (null if student, set if admin)
      */
-    public EvaluationDTO createEvaluation(CreateEvaluationRequest request) {
+    public EvaluationDTO createEvaluation(CreateEvaluationRequest request, Long createdBy) {
         // Validate student exists via student-service
         try {
             StudentServiceClient.StudentResponse studentResponse = 
@@ -119,6 +121,7 @@ public class EvaluationService {
         // Create evaluation (no Student entity needed, just studentCode)
         Evaluation evaluation = EvaluationMapper.toEntity(request, rubric);
         evaluation.setTotalPoints(0.0); // Will be calculated below
+        evaluation.setCreatedBy(createdBy); // Set createdBy for audit trail
         
         // Save evaluation first to get ID (needed for composite key in EvaluationDetail)
         Evaluation saved = evaluationRepository.save(evaluation);
@@ -415,6 +418,49 @@ public class EvaluationService {
         evaluationHistoryRepository.save(history);
         
         Evaluation updated = evaluationRepository.save(evaluation);
+        
+        // Send notifications
+        if (notificationService != null && authServiceClient != null) {
+            try {
+                // Get student info from student-service
+                StudentServiceClient.StudentResponse studentResponse = 
+                    studentServiceClient.getStudentByCode(evaluation.getStudentCode());
+                
+                if (studentResponse != null && studentResponse.isSuccess() && studentResponse.getData() != null) {
+                    StudentServiceClient.StudentDTO student = studentResponse.getData();
+                    
+                    // Notify reviewers
+                    notificationService.notifyEvaluationNeedsReview(
+                        updated.getId(),
+                        student.getFullName(),
+                        student.getStudentCode(),
+                        student.getClassCode(),
+                        student.getFacultyCode(),
+                        "SUBMITTED"
+                    );
+                    
+                    // Notify student
+                    ptit.drl.evaluation.client.AuthServiceClient.UserIdResponse userIdResponse = 
+                        authServiceClient.getUserIdByStudentCode(evaluation.getStudentCode());
+                    if (userIdResponse != null && userIdResponse.isSuccess() && userIdResponse.getData() != null) {
+                        notificationService.createNotification(
+                            userIdResponse.getData(),
+                            "Đánh giá đã được nộp",
+                            String.format(
+                                "Đánh giá điểm rèn luyện của bạn (Học kỳ: %s) đã được nộp thành công. Vui lòng chờ duyệt.",
+                                evaluation.getSemester()
+                            ),
+                            ptit.drl.evaluation.entity.Notification.NotificationType.EVALUATION_SUBMITTED,
+                            "EVALUATION",
+                            updated.getId()
+                        );
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to create submit notifications: " + e.getMessage());
+            }
+        }
+        
         return EvaluationMapper.toDTO(updated);
     }
     
@@ -453,6 +499,51 @@ public class EvaluationService {
         evaluationHistoryRepository.save(history);
         
         Evaluation updated = evaluationRepository.save(evaluation);
+        
+        // Send notifications
+        if (notificationService != null && authServiceClient != null) {
+            try {
+                // Get student info
+                StudentServiceClient.StudentResponse studentResponse = 
+                    studentServiceClient.getStudentByCode(evaluation.getStudentCode());
+                
+                if (studentResponse != null && studentResponse.isSuccess() && studentResponse.getData() != null) {
+                    StudentServiceClient.StudentDTO student = studentResponse.getData();
+                    
+                    // If not final approval, notify next level reviewers
+                    if (newStatus != EvaluationStatus.CTSV_APPROVED) {
+                        String nextLevel = newStatus.getApprovalLevel();
+                        notificationService.notifyEvaluationEscalated(
+                            updated.getId(),
+                            student.getFullName(),
+                            student.getStudentCode(),
+                            nextLevel
+                        );
+                    } else {
+                        // Final approval - notify student
+                        ptit.drl.evaluation.client.AuthServiceClient.UserIdResponse userIdResponse = 
+                            authServiceClient.getUserIdByStudentCode(evaluation.getStudentCode());
+                        if (userIdResponse != null && userIdResponse.isSuccess() && userIdResponse.getData() != null) {
+                            notificationService.createNotification(
+                                userIdResponse.getData(),
+                                "Đánh giá đã được duyệt",
+                                String.format(
+                                    "Đánh giá điểm rèn luyện của bạn (Học kỳ: %s) đã được duyệt hoàn tất. Điểm: %.1f",
+                                    evaluation.getSemester(),
+                                    evaluation.getTotalPoints() != null ? evaluation.getTotalPoints() : 0.0
+                                ),
+                                ptit.drl.evaluation.entity.Notification.NotificationType.EVALUATION_APPROVED,
+                                "EVALUATION",
+                                updated.getId()
+                            );
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("Failed to create approval notifications: " + e.getMessage());
+            }
+        }
+        
         return EvaluationMapper.toDTO(updated);
     }
     
@@ -495,20 +586,13 @@ public class EvaluationService {
                     authServiceClient.getUserIdByStudentCode(evaluation.getStudentCode());
                 if (response != null && response.isSuccess() && response.getData() != null) {
                     Long userId = response.getData();
-                    String title = "Đánh giá bị từ chối";
-                    String message = String.format(
-                        "Đánh giá điểm rèn luyện của bạn (Học kỳ: %s) đã bị từ chối. " +
-                        "Lý do: %s. Vui lòng chỉnh sửa và nộp lại.",
-                        evaluation.getSemester(),
-                        reason
-                    );
-                    notificationService.createNotification(
+                    // Use notifyEvaluationReturned for better UX
+                    String reviewerRole = level != null ? level : "Người duyệt";
+                    notificationService.notifyEvaluationReturned(
+                        evaluation.getId(),
                         userId,
-                        title,
-                        message,
-                        ptit.drl.evaluation.entity.Notification.NotificationType.EVALUATION_REJECTED,
-                        "EVALUATION",
-                        evaluation.getId()
+                        reviewerRole,
+                        reason
                     );
                 }
             } catch (Exception e) {

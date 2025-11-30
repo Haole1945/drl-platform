@@ -12,13 +12,16 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { getActiveRubric, getCriteriaByRubric, createEvaluation, submitEvaluation } from '@/lib/evaluation';
-import { canCreateEvaluation } from '@/lib/role-utils';
+import { canCreateEvaluation, hasAnyRole } from '@/lib/role-utils';
+import { getStudents } from '@/lib/student';
+import type { Student } from '@/lib/student';
 import type { Rubric, Criteria, CriteriaWithSubCriteria } from '@/types/evaluation';
 import { parseSubCriteria, calculateCriteriaTotal } from '@/lib/criteria-parser';
 import { FileUpload, type UploadedFile } from '@/components/FileUpload';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { getOpenPeriod } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function NewEvaluationPage() {
   const { user } = useAuth();
@@ -31,6 +34,10 @@ export default function NewEvaluationPage() {
   const [semester, setSemester] = useState('');
   const [openPeriod, setOpenPeriod] = useState<any>(null);
   const [checkingPeriod, setCheckingPeriod] = useState(true);
+  const [selectedStudentCode, setSelectedStudentCode] = useState<string>('');
+  const [students, setStudents] = useState<Student[]>([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const isAdmin = hasAnyRole(user, ['ADMIN']);
   
   // State for sub-criteria scores: criteriaId -> subCriteriaId -> score
   const [subCriteriaScores, setSubCriteriaScores] = useState<Record<number, Record<string, number>>>({});
@@ -65,6 +72,24 @@ export default function NewEvaluationPage() {
       return;
     }
 
+    // If admin, load students list
+    if (isAdmin) {
+      const loadStudents = async () => {
+        setLoadingStudents(true);
+        try {
+          const response = await getStudents({ page: 0, size: 1000 });
+          if (response.success && response.data) {
+            setStudents(response.data.content || []);
+          }
+        } catch (error) {
+          console.error('Failed to load students:', error);
+        } finally {
+          setLoadingStudents(false);
+        }
+      };
+      loadStudents();
+    }
+
     const loadData = async () => {
       try {
         // Check for open period first
@@ -87,12 +112,16 @@ export default function NewEvaluationPage() {
         }
         
         // Load rubric
+        // For admin creating evaluation for a student, use selected student's classCode
+        // For non-admin, use their own classCode
+        const classCodeForRubric = isAdmin && selectedStudentCode
+          ? students.find(s => s.studentCode === selectedStudentCode)?.classCode
+          : user?.classCode;
+        
         console.log('👤 Current user:', user);
-        console.log('📝 Student code:', user?.studentCode);
-        console.log('🏫 Class code:', user?.classCode);
-        const classCode = user?.classCode;
-        console.log('🎯 Using class code for rubric filter:', classCode);
-        const rubricResponse = await getActiveRubric(undefined, classCode);
+        console.log('📝 Student code:', isAdmin ? selectedStudentCode : user?.studentCode);
+        console.log('🏫 Class code for rubric:', classCodeForRubric);
+        const rubricResponse = await getActiveRubric(undefined, classCodeForRubric);
         console.log('📋 Rubric response:', rubricResponse);
         if (rubricResponse.success && rubricResponse.data) {
           setRubric(rubricResponse.data);
@@ -142,7 +171,48 @@ export default function NewEvaluationPage() {
     };
 
     loadData();
-  }, [user, router, toast]);
+  }, [user, router, toast, isAdmin, selectedStudentCode, students]);
+  
+  // Auto-set studentCode for non-admin users
+  useEffect(() => {
+    if (!isAdmin && user?.studentCode) {
+      setSelectedStudentCode(user.studentCode);
+    }
+  }, [isAdmin, user?.studentCode]);
+  
+  // Reload rubric when admin selects a different student
+  useEffect(() => {
+    if (isAdmin && selectedStudentCode && students.length > 0) {
+      const loadRubricForStudent = async () => {
+        try {
+          const selectedStudent = students.find(s => s.studentCode === selectedStudentCode);
+          if (!selectedStudent) return;
+          
+          const classCode = selectedStudent.classCode;
+          const rubricResponse = await getActiveRubric(undefined, classCode);
+          if (rubricResponse.success && rubricResponse.data) {
+            setRubric(rubricResponse.data);
+            
+            const criteriaResponse = await getCriteriaByRubric(rubricResponse.data.id);
+            if (criteriaResponse.success && criteriaResponse.data) {
+              setCriteria(criteriaResponse.data);
+              // Reset scores when rubric changes
+              const initialScores: Record<number, Record<string, number>> = {};
+              criteriaResponse.data.forEach(c => {
+                initialScores[c.id] = {};
+              });
+              setSubCriteriaScores(initialScores);
+              setSubCriteriaEvidence({});
+              setSubCriteriaFiles({});
+            }
+          }
+        } catch (error) {
+          console.error('Failed to reload rubric for selected student:', error);
+        }
+      };
+      loadRubricForStudent();
+    }
+  }, [isAdmin, selectedStudentCode, students.length]);
 
   // Auto-fill semester from open period when available
   useEffect(() => {
@@ -176,10 +246,15 @@ export default function NewEvaluationPage() {
 
 
   const handleSubmit = async (asDraft: boolean) => {
-    if (!user?.studentCode || !rubric || !semester.trim()) {
+    // For admin, use selectedStudentCode; for others, use user.studentCode
+    const studentCodeToUse = isAdmin ? selectedStudentCode : user?.studentCode;
+    
+    if (!studentCodeToUse || !rubric || !semester.trim()) {
       toast({
         title: "Lỗi",
-        description: "Vui lòng điền đầy đủ thông tin.",
+        description: isAdmin 
+          ? "Vui lòng chọn sinh viên và điền đầy đủ thông tin."
+          : "Vui lòng điền đầy đủ thông tin.",
         variant: "destructive"
       });
       return;
@@ -242,7 +317,7 @@ export default function NewEvaluationPage() {
       });
 
       const response = await createEvaluation({
-        studentCode: user.studentCode,
+        studentCode: studentCodeToUse,
         semester: semester.trim(),
         academicYear: rubric.academicYear,
         rubricId: rubric.id,
@@ -368,6 +443,38 @@ export default function NewEvaluationPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isAdmin && (
+                <div className="space-y-2">
+                  <Label htmlFor="studentCode">Sinh viên *</Label>
+                  {loadingStudents ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="text-sm text-muted-foreground">Đang tải danh sách sinh viên...</span>
+                    </div>
+                  ) : (
+                    <Select
+                      value={selectedStudentCode}
+                      onValueChange={setSelectedStudentCode}
+                      required
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn sinh viên" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {students.map((student) => (
+                          <SelectItem key={student.studentCode} value={student.studentCode}>
+                            {student.studentCode} - {student.fullName}
+                            {student.className && ` (${student.className})`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Chọn sinh viên để tạo đánh giá thay cho họ
+                  </p>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="semester">Học kỳ *</Label>
                 <Input

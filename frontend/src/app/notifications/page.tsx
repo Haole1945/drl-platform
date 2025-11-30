@@ -86,7 +86,15 @@ export default function NotificationsPage() {
       return '/evaluations/new';
     }
     if (notification.relatedType === 'EVALUATION' && notification.relatedId) {
+      // For reviewers - link to approvals page
+      if (notification.type === 'EVALUATION_NEEDS_REVIEW' || notification.type === 'EVALUATION_ESCALATED') {
+        return '/approvals';
+      }
+      // For students - link to evaluation detail
       return `/evaluations/${notification.relatedId}`;
+    }
+    if (notification.relatedType === 'RUBRIC' && notification.relatedId) {
+      return '/training-points';
     }
     return null;
   };
@@ -99,6 +107,11 @@ export default function NotificationsPage() {
       'EVALUATION_SUBMITTED': 'Đã nộp',
       'EVALUATION_APPROVED': 'Đã duyệt',
       'EVALUATION_REJECTED': 'Bị từ chối',
+      'EVALUATION_RETURNED': 'Cần chỉnh sửa',
+      'EVALUATION_NEEDS_REVIEW': 'Cần duyệt',
+      'EVALUATION_ESCALATED': 'Chuyển cấp cao',
+      'RUBRIC_ACTIVATED': 'Rubric mới',
+      'RUBRIC_UPDATED': 'Rubric cập nhật',
     };
     return labels[type] || type;
   };

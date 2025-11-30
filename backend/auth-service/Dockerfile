@@ -15,7 +15,9 @@ FROM eclipse-temurin:21-jre
 WORKDIR /app
 
 # Optimize JVM for containerized environments
-ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -XX:+UseStringDeduplication"
+# Set timezone to Vietnam (Asia/Ho_Chi_Minh = UTC+7)
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -XX:+UseStringDeduplication -Duser.timezone=Asia/Ho_Chi_Minh"
+ENV TZ=Asia/Ho_Chi_Minh
 
 HEALTHCHECK --interval=10s --timeout=3s --retries=10 \
     CMD wget -qO- http://localhost:8082/actuator/health | grep '"status":"UP"' || exit 1

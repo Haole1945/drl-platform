@@ -440,6 +440,22 @@ public class AuthService {
     }
     
     /**
+     * Get user IDs by role (for notifications)
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Long> getUserIdsByRole(String roleName) {
+        return userRepository.findUserIdsByRole(roleName);
+    }
+    
+    /**
+     * Get user IDs by role and class code (for notifications)
+     */
+    @Transactional(readOnly = true)
+    public java.util.List<Long> getUserIdsByRoleAndClassCode(String roleName, String classCode) {
+        return userRepository.findUserIdsByRoleAndClassCode(roleName, classCode);
+    }
+    
+    /**
      * Change user password
      */
     public void changePassword(Long userId, String currentPassword, String newPassword) {

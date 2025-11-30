@@ -20,6 +20,7 @@ import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2 } from 'lucide-reac
 import { getOpenPeriod } from '@/lib/api';
 import { parseSubCriteria } from '@/lib/criteria-parser';
 import { parseEvidence, getFileNameFromUrl } from '@/lib/evidence-parser';
+import { formatDateTime, formatDate as formatDateUtil } from '@/lib/date-utils';
 import {
   Dialog,
   DialogContent,
@@ -85,6 +86,9 @@ export default function EvaluationDetailPage() {
       };
     });
   }, [criteria, evaluation]);
+
+  // Use shared date utility for consistent formatting
+  const formatDate = formatDateTime;
 
   // Calculate total score - use API value first, fallback to calculated from details
   const totalScore = useMemo(() => {
@@ -416,26 +420,49 @@ export default function EvaluationDetailPage() {
                 {evaluation.submittedAt && (
                   <div>
                     <Label>Ngày nộp</Label>
-                    <p className="text-sm">{new Date(evaluation.submittedAt).toLocaleString('vi-VN')}</p>
+                    <p className="text-sm">
+                      {(() => {
+                        // Try to get time from history if available
+                        const submitHistory = evaluation.approvalHistory?.find(h => h.action === 'SUBMITTED');
+                        if (submitHistory?.timestamp) {
+                          return formatDate(submitHistory.timestamp);
+                        }
+                        // Fallback to submittedAt (date only)
+                        return formatDate(evaluation.submittedAt);
+                      })()}
+                    </p>
                   </div>
                 )}
                 {evaluation.approvedAt && (
                   <div>
                     <Label>Ngày duyệt</Label>
-                    <p className="text-sm">{new Date(evaluation.approvedAt).toLocaleString('vi-VN')}</p>
+                    <p className="text-sm">{formatDate(evaluation.approvedAt)}</p>
+                  </div>
+                )}
+                {evaluation.isCreatedByAdmin && (
+                  <div>
+                    <Label>Người tạo</Label>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        Tạo bởi Admin
+                      </Badge>
+                      {evaluation.createdByName && (
+                        <span className="text-sm text-muted-foreground">
+                          ({evaluation.createdByName})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
-              {evaluation.rejectionReason && (
-                <div>
-                  <Label>Lý do từ chối</Label>
-                  <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                    {evaluation.rejectionReason}
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
+
+          {/* History Component - Moved here between info and criteria */}
+          <EvaluationHistory 
+            history={evaluation.approvalHistory || evaluation.history || []} 
+            resubmissionCount={evaluation.resubmissionCount}
+          />
 
           <Card>
             <CardHeader>
@@ -572,12 +599,6 @@ export default function EvaluationDetailPage() {
               ))}
             </CardContent>
           </Card>
-
-          {/* History Component */}
-          <EvaluationHistory 
-            history={evaluation.history || []} 
-            resubmissionCount={evaluation.resubmissionCount}
-          />
 
           <div className="flex gap-4 justify-end">
             {canSubmit && (

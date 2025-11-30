@@ -8,7 +8,10 @@ import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -102,7 +105,21 @@ public class JwtTokenProvider {
                 .parseSignedClaims(token)
                 .getPayload();
         
-        return (Set<String>) claims.get("roles");
+        Object rolesObj = claims.get("roles");
+        if (rolesObj == null) {
+            return Collections.emptySet();
+        }
+        
+        if (rolesObj instanceof Set) {
+            return (Set<String>) rolesObj;
+        }
+        
+        // Handle case where roles might be a List
+        if (rolesObj instanceof List) {
+            return new HashSet<>((List<String>) rolesObj);
+        }
+        
+        return Collections.emptySet();
     }
     
     /**
