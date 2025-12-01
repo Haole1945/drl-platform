@@ -14,13 +14,15 @@ import { getEvaluationById, submitEvaluation, approveEvaluation, rejectEvaluatio
 import { StatusBadge } from '@/components/StatusBadge';
 import { EvaluationHistory } from '@/components/EvaluationHistory';
 import { canApproveClassLevel, canApproveFacultyLevel, canApproveCtsvLevel } from '@/lib/role-utils';
-import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria } from '@/types/evaluation';
+import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria,SubCriteria } from '@/types/evaluation';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2 } from 'lucide-react';
-import { getOpenPeriod } from '@/lib/api';
+import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2 , Sparkles} from 'lucide-react';
+import { getOpenPeriod , getAuthToken} from '@/lib/api';
 import { parseSubCriteria } from '@/lib/criteria-parser';
 import { parseEvidence, getFileNameFromUrl } from '@/lib/evidence-parser';
 import { formatDateTime, formatDate as formatDateUtil } from '@/lib/date-utils';
+import { AiScoringSuggestionCompact } from '@/components/AiScoringSuggestionCompact';
+
 import {
   Dialog,
   DialogContent,
@@ -76,7 +78,7 @@ export default function EvaluationDetailPage() {
           ...sub,
           score: score, // Use score from parsed evidence
           evidence: files,
-        };
+        }as SubCriteria & { evidence: { url: string; }[] };
       });
 
       return {
@@ -166,6 +168,19 @@ export default function EvaluationDetailPage() {
     loadData();
   }, [evaluationId, router, toast]);
 
+  // Helper function to parse date from string or number array [year, month, day]
+  const parseDate = (dateValue: string | number[]): Date => {
+    if (typeof dateValue === 'string') {
+      return new Date(dateValue);
+    }
+    if (Array.isArray(dateValue) && dateValue.length >= 3) {
+      // Java LocalDate format: [year, month, day]
+      // Note: JavaScript Date month is 0-indexed, Java LocalDate month is 1-indexed
+      return new Date(dateValue[0], dateValue[1] - 1, dateValue[2]);
+    }
+    return new Date();
+  };
+
   // Check if evaluation period is still open for editing (for submitted evaluations)
   useEffect(() => {
     const checkPeriod = async () => {
@@ -176,8 +191,11 @@ export default function EvaluationDetailPage() {
             setOpenPeriod(periodResponse.data);
             // Check if current date is within period
             const today = new Date();
-            const startDate = new Date(periodResponse.data.startDate);
-            const endDate = new Date(periodResponse.data.endDate);
+            today.setHours(0, 0, 0, 0); // Reset time to start of day for comparison
+            const startDate = parseDate(periodResponse.data.startDate);
+            startDate.setHours(0, 0, 0, 0);
+            const endDate = parseDate(periodResponse.data.endDate);
+            endDate.setHours(23, 59, 59, 999); // Set to end of day
             setCanEditInPeriod(today >= startDate && today <= endDate);
           } else {
             setCanEditInPeriod(false);
@@ -502,51 +520,98 @@ export default function EvaluationDetailPage() {
                         <div className="col-span-2 text-center">Bằng chứng</div>
                       </div>
                       
-                      {criterion.subCriteria.map((sub) => (
-                        <div key={sub.id} className="grid grid-cols-12 gap-2 items-start border-b pb-2 last:border-0">
-                          <div className="col-span-1 text-sm font-medium">{sub.id}</div>
-                          <div className="col-span-5">
-                            <div className="text-sm font-medium">{sub.name}</div>
-                            {sub.description && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {sub.description}
+                      {criterion.subCriteria.map((sub) => {
+                        // Type assertion: evidence is converted to array in criteriaWithSubCriteria
+                        const evidenceArray = (sub as any).evidence as { url: string }[] | undefined;
+                        
+                        // Lấy evidence file IDs để gọi AI
+                        const evidenceFileIds = evidenceArray?.map((e: { url: string }, index: number) => {
+                          const match = e.url?.match(/\/files\/evidence\/\d+\/\d+\/(\d+)-/);
+                          return match ? parseInt(match[1]) : Date.now() + index;
+                        }) || [];
+
+                        const hasEvidence = evidenceArray && evidenceArray.length > 0;
+
+                        // DEBUG: Log để kiểm tra file IDs (giữ lại như bạn cần)
+                        if (hasEvidence) {
+                          console.log(`Sub-criteria ${sub.id}:`, {
+                            evidenceCount: evidenceArray.length,
+                            evidenceFileIds,
+                            firstEvidenceUrl: evidenceArray[0]?.url,
+                          });
+                        }
+
+                        return (
+                          <div
+                            key={sub.id}
+                            className="grid grid-cols-12 gap-2 items-start border-b pb-4 last:border-0"
+                          >
+                            {/* Cột 1: ID */}
+                            <div className="col-span-1 text-sm font-medium">{sub.id}</div>
+
+                            {/* Cột 2: Tên + mô tả */}
+                            <div className="col-span-5">
+                              <div className="text-sm font-medium">{sub.name}</div>
+                              {sub.description && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {sub.description}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Cột 3: Điểm tối đa */}
+                            <div className="col-span-2 text-center text-sm">
+                              {sub.maxPoints} điểm
+                            </div>
+
+                            {/* Cột 4: Điểm tự chấm */}
+                            <div className="col-span-2 text-center">
+                              <div className="text-sm font-semibold">{sub.score || 0}</div>
+                              <div className="text-xs text-muted-foreground">(tự chấm)</div>
+                            </div>
+
+                            {/* Cột 5: Evidence files */}
+                            <div className="col-span-2 flex justify-center items-center">
+                              {hasEvidence ? (
+                                <div className="flex flex-col gap-1 items-center">
+                                  {evidenceArray!.slice(0, 3).map((file: { url: string }, idx: number) => (
+                                    <a
+                                      key={idx}
+                                      href={`${API_BASE}${file.url}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      {getFileNameFromUrl(file.url)}
+                                    </a>
+                                  ))}
+                                  {evidenceArray!.length > 3 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      +{evidenceArray!.length - 3} file
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">-</span>
+                              )}
+                            </div>
+
+                            {/* ✨ AI Verification - chỉ hiện khi có evidence */}
+                            {hasEvidence && (
+                              <div className="col-span-12 mt-3 -mb-2">
+                                <AiScoringSuggestionCompact
+                                  criteriaId={criterion.id}
+                                  maxScore={sub.maxPoints}
+                                  evidenceFileIds={evidenceFileIds}
+                                  currentScore={sub.score || 0}
+                                  token={getAuthToken() || ""}
+                                />
                               </div>
                             )}
                           </div>
-                          <div className="col-span-2 text-center text-sm">
-                            {sub.maxPoints} điểm
-                          </div>
-                          <div className="col-span-2 text-center text-sm">
-                            {/* Always show score (0 if not available, since individual sub-criteria scores aren't stored) */}
-                            {sub.score || 0}
-                          </div>
-                          <div className="col-span-2 flex justify-center items-center">
-                            {sub.evidence && sub.evidence.length > 0 ? (
-                              <div className="flex flex-col gap-1 items-center">
-                                {sub.evidence.slice(0, 3).map((file, idx) => (
-                                  <a
-                                    key={idx}
-                                    href={`${API_BASE}${file.url}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-primary hover:underline flex items-center gap-1"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    {getFileNameFromUrl(file.url)}
-                                  </a>
-                                ))}
-                                {sub.evidence.length > 3 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    +{sub.evidence.length - 3} file
-                                  </span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground text-center">-</span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     // Fallback: If no sub-criteria, show simple format

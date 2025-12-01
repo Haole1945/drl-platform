@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.domain.Page;
-
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import java.io.IOException;
 
 /**
@@ -26,7 +26,9 @@ public class JacksonConfig {
     public ObjectMapper objectMapper() {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new JavaTimeModule());
-        
+         // Ignore unknown properties when deserializing (e.g., maxScore from frontend)
+         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
         // Custom serializer for Page to avoid Unpaged serialization issues
         SimpleModule pageModule = new SimpleModule();
         // Use raw type to avoid generic type issues

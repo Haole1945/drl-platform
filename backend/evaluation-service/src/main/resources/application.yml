@@ -58,9 +58,11 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://eureka-server:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://eureka-server:8761/eureka/}
   instance:
     prefer-ip-address: true
+      hostname: ${EUREKA_INSTANCE_HOSTNAME:evaluation-service}
+
 
 feign:
   client:
@@ -88,6 +90,15 @@ management:
 file:
   upload-dir: ${FILE_UPLOAD_DIR:./uploads/evidence}
   max-size: ${FILE_MAX_SIZE:52428800} # 50MB in bytes
+  # OpenAI Configuration for AI Scoring
+  # API key must be set via OPENAI_API_KEY environment variable or .env.local file
+openai:
+  api:
+    key: ${OPENAI_API_KEY:} # Required: Set in .env.local or environment variable
+    model: ${OPENAI_MODEL:gpt-4o-mini} # OpenAI model: gpt-4o-mini
+    timeout: ${OPENAI_TIMEOUT:60} # seconds
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1} # OpenAI endpoint
+
 
 # Swagger/OpenAPI Configuration
 springdoc:

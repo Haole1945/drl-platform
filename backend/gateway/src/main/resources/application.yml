@@ -26,6 +26,13 @@ spring:
           evict-in-background: true
           evict-idle-timeout: 20s
       routes:
+       # AI Scoring Route (MUST be before evaluation-service route to avoid path conflicts)
+        - id: ai-scoring-service
+          uri: lb://evaluation-service
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
         # Auth Service Route (using service discovery)
         - id: auth-service
           uri: lb://auth-service
@@ -42,11 +49,11 @@ spring:
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
         
-        # Evaluation Service Route (using service discovery)
+         # Evaluation Service Route (using service discovery) - Must be last to avoid conflicts
         - id: evaluation-service
           uri: lb://evaluation-service
           predicates:
-            - Path=/api/evaluations/**,/api/rubrics/**,/api/criteria/**,/api/files/**,/api/evaluation-periods/**
+            - Path=/api/evaluations/**,/api/rubrics/**,/api/criteria/**,/api/files/**,/api/evaluation-periods/**,/api/test/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
         
