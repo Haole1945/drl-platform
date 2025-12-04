@@ -14,13 +14,15 @@ import { getEvaluationById, submitEvaluation, approveEvaluation, rejectEvaluatio
 import { StatusBadge } from '@/components/StatusBadge';
 import { EvaluationHistory } from '@/components/EvaluationHistory';
 import { canApproveClassLevel, canApproveFacultyLevel, canApproveCtsvLevel } from '@/lib/role-utils';
-import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria } from '@/types/evaluation';
+import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria,SubCriteria } from '@/types/evaluation';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2 } from 'lucide-react';
-import { getOpenPeriod } from '@/lib/api';
+import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2 , Sparkles} from 'lucide-react';
+import { getOpenPeriod , getAuthToken} from '@/lib/api';
 import { parseSubCriteria } from '@/lib/criteria-parser';
 import { parseEvidence, getFileNameFromUrl } from '@/lib/evidence-parser';
 import { formatDateTime, formatDate as formatDateUtil } from '@/lib/date-utils';
+import { AiScoringSuggestionCompact } from '@/components/AiScoringSuggestionCompact';
+
 import {
   Dialog,
   DialogContent,
@@ -165,6 +167,19 @@ export default function EvaluationDetailPage() {
 
     loadData();
   }, [evaluationId, router, toast]);
+
+  // Helper function to parse date from string or number array [year, month, day]
+  const parseDate = (dateValue: string | number[]): Date => {
+    if (typeof dateValue === 'string') {
+      return new Date(dateValue);
+    }
+    if (Array.isArray(dateValue) && dateValue.length >= 3) {
+      // Java LocalDate format: [year, month, day]
+      // Note: JavaScript Date month is 0-indexed, Java LocalDate month is 1-indexed
+      return new Date(dateValue[0], dateValue[1] - 1, dateValue[2]);
+    }
+    return new Date();
+  };
 
   // Check if evaluation period is still open for editing (for submitted evaluations)
   useEffect(() => {
@@ -556,8 +571,8 @@ export default function EvaluationDetailPage() {
                               <span className="text-xs text-muted-foreground text-center">-</span>
                             )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     // Fallback: If no sub-criteria, show simple format

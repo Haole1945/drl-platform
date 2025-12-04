@@ -10,5 +10,14 @@ node_modules/
 dist/
 .env.local
 
+# Environment variables (contains sensitive data)
+.env
+.env.local
+.env.*.local
+backend/**/.env
+backend/**/.env.local
+frontend/.env.local
+frontend/.env
+
 # OS
 .DS_Store
