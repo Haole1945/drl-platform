@@ -367,21 +367,12 @@ export default function SystemConfigPage() {
         targetClasses: rubricFormData.targetClasses.trim() || undefined
       };
       
-      console.log('🔍 DEBUG - Rubric Form Data:', rubricFormData);
-      console.log('🔍 DEBUG - Rubric Data to send:', rubricData);
-      console.log('🔍 DEBUG - isActive value:', rubricData.isActive);
-      console.log('🔍 DEBUG - targetClasses value:', rubricData.targetClasses);
-      
       if (selectedRubric) {
-        console.log('🔄 DEBUG - Updating rubric ID:', selectedRubric.id);
         const response = await updateRubric(selectedRubric.id, rubricData);
-        console.log('✅ DEBUG - Update response:', response);
         if (!response.success) throw new Error(response.message);
         rubricId = selectedRubric.id;
       } else {
-        console.log('➕ DEBUG - Creating new rubric');
         const response = await createRubric(rubricData);
-        console.log('✅ DEBUG - Create response:', response);
         if (!response.success) throw new Error(response.message);
         rubricId = response.data.id;
       }
@@ -395,7 +386,7 @@ export default function SystemConfigPage() {
           try {
             await deleteCriteria(criterion.id);
           } catch (error) {
-            console.error('Error deleting criterion:', error);
+            // Error deleting criterion - continue with other operations
           }
         }
       }

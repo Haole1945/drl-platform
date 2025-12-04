@@ -70,12 +70,12 @@ export default function EvaluationDetailPage() {
         // If no evidenceData found, check if score exists in parsedEvidence (for scores without evidence)
         const score = evidenceData?.score ?? 
           (parsedEvidence.find(e => e.subCriteriaId === sub.id && e.score !== undefined)?.score ?? 0);
-        // Convert fileUrls to file objects with url property
-        const files = (evidenceData?.fileUrls || []).map(url => ({ url }));
+        // Convert fileUrls to string (comma-separated URLs)
+        const evidenceString = (evidenceData?.fileUrls || []).join(', ');
         return {
           ...sub,
           score: score, // Use score from parsed evidence
-          evidence: files,
+          evidence: evidenceString, // Store as string to match SubCriteria type
         };
       });
 
@@ -176,8 +176,12 @@ export default function EvaluationDetailPage() {
             setOpenPeriod(periodResponse.data);
             // Check if current date is within period
             const today = new Date();
-            const startDate = new Date(periodResponse.data.startDate);
-            const endDate = new Date(periodResponse.data.endDate);
+            const startDate = Array.isArray(periodResponse.data.startDate)
+              ? new Date(periodResponse.data.startDate[0], periodResponse.data.startDate[1] - 1, periodResponse.data.startDate[2])
+              : new Date(periodResponse.data.startDate);
+            const endDate = Array.isArray(periodResponse.data.endDate)
+              ? new Date(periodResponse.data.endDate[0], periodResponse.data.endDate[1] - 1, periodResponse.data.endDate[2])
+              : new Date(periodResponse.data.endDate);
             setCanEditInPeriod(today >= startDate && today <= endDate);
           } else {
             setCanEditInPeriod(false);
@@ -523,23 +527,30 @@ export default function EvaluationDetailPage() {
                           <div className="col-span-2 flex justify-center items-center">
                             {sub.evidence && sub.evidence.length > 0 ? (
                               <div className="flex flex-col gap-1 items-center">
-                                {sub.evidence.slice(0, 3).map((file, idx) => (
-                                  <a
-                                    key={idx}
-                                    href={`${API_BASE}${file.url}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-xs text-primary hover:underline flex items-center gap-1"
-                                  >
-                                    <ExternalLink className="h-3 w-3" />
-                                    {getFileNameFromUrl(file.url)}
-                                  </a>
-                                ))}
-                                {sub.evidence.length > 3 && (
-                                  <span className="text-xs text-muted-foreground">
-                                    +{sub.evidence.length - 3} file
-                                  </span>
-                                )}
+                                {(() => {
+                                  // Parse evidence string (comma-separated URLs) into array
+                                  const fileUrls = sub.evidence.split(',').map(url => url.trim()).filter(Boolean);
+                                  return fileUrls.slice(0, 3).map((url, idx) => (
+                                    <a
+                                      key={idx}
+                                      href={`${API_BASE}${url}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                                    >
+                                      <ExternalLink className="h-3 w-3" />
+                                      {getFileNameFromUrl(url)}
+                                    </a>
+                                  ));
+                                })()}
+                                {(() => {
+                                  const fileUrls = sub.evidence.split(',').map(url => url.trim()).filter(Boolean);
+                                  return fileUrls.length > 3 ? (
+                                    <span className="text-xs text-muted-foreground">
+                                      +{fileUrls.length - 3} file
+                                    </span>
+                                  ) : null;
+                                })()}
                               </div>
                             ) : (
                               <span className="text-xs text-muted-foreground text-center">-</span>

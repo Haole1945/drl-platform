@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,19 +13,27 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { getActiveRubric, getCriteriaByRubric, createEvaluation, submitEvaluation } from '@/lib/evaluation';
 import { canCreateEvaluation, hasAnyRole } from '@/lib/role-utils';
-import { getStudents } from '@/lib/student';
-import type { Student } from '@/lib/student';
+import { getStudents, getFaculties, getMajors, getClasses, type Student, type Faculty, type Major, type Class } from '@/lib/student';
 import type { Rubric, Criteria, CriteriaWithSubCriteria } from '@/types/evaluation';
 import { parseSubCriteria, calculateCriteriaTotal } from '@/lib/criteria-parser';
 import { FileUpload, type UploadedFile } from '@/components/FileUpload';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Search, Users, ArrowRight } from 'lucide-react';
 import { getOpenPeriod } from '@/lib/api';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 
 export default function NewEvaluationPage() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -35,9 +43,26 @@ export default function NewEvaluationPage() {
   const [openPeriod, setOpenPeriod] = useState<any>(null);
   const [checkingPeriod, setCheckingPeriod] = useState(true);
   const [selectedStudentCode, setSelectedStudentCode] = useState<string>('');
+  const isAdmin = useMemo(() => hasAnyRole(user, ['ADMIN']), [user]);
+  
+  // Student selection page state (for admin)
+  const [showStudentSelection, setShowStudentSelection] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
-  const [loadingStudents, setLoadingStudents] = useState(false);
-  const isAdmin = hasAnyRole(user, ['ADMIN']);
+  const [loadingStudents, setLoadingStudents] = useState(true);
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(20);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const [search, setSearch] = useState('');
+  const [facultyCode, setFacultyCode] = useState<string>('all');
+  const [majorCode, setMajorCode] = useState<string>('all');
+  const [classCode, setClassCode] = useState<string>('all');
+  const [faculties, setFaculties] = useState<Faculty[]>([]);
+  const [majors, setMajors] = useState<Major[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loadingFaculties, setLoadingFaculties] = useState(false);
+  const [loadingMajors, setLoadingMajors] = useState(false);
+  const [loadingClasses, setLoadingClasses] = useState(false);
   
   // State for sub-criteria scores: criteriaId -> subCriteriaId -> score
   const [subCriteriaScores, setSubCriteriaScores] = useState<Record<number, Record<string, number>>>({});
@@ -49,8 +74,14 @@ export default function NewEvaluationPage() {
   // Parse criteria to include sub-criteria
   const criteriaWithSubCriteria = useMemo<CriteriaWithSubCriteria[]>(() => {
     return criteria.map(criterion => {
-      const subCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
+      const parsedSubCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
       const scores = subCriteriaScores[criterion.id] || {};
+      // Map parsed sub-criteria to include score and evidence
+      const subCriteria = parsedSubCriteria.map(sub => ({
+        ...sub,
+        score: scores[sub.id] || 0,
+        evidence: subCriteriaEvidence[criterion.id]?.[sub.id] || '',
+      }));
       const totalScore = calculateCriteriaTotal(subCriteria, scores);
       
       return {
@@ -59,77 +90,255 @@ export default function NewEvaluationPage() {
         totalScore,
       };
     });
-  }, [criteria, subCriteriaScores]);
+  }, [criteria, subCriteriaScores, subCriteriaEvidence]);
 
   // Calculate total score across all criteria
   const totalScore = useMemo(() => {
     return criteriaWithSubCriteria.reduce((sum, c) => sum + c.totalScore, 0);
   }, [criteriaWithSubCriteria]);
 
+  // Check if admin needs to select student
   useEffect(() => {
     if (!user || !canCreateEvaluation(user)) {
       router.push('/dashboard');
       return;
     }
 
-    // If admin, load students list
+    // For admin: check if studentCode is in query params
     if (isAdmin) {
-      const loadStudents = async () => {
-        setLoadingStudents(true);
-        try {
-          const response = await getStudents({ page: 0, size: 1000 });
-          if (response.success && response.data) {
-            setStudents(response.data.content || []);
-          }
-        } catch (error) {
-          console.error('Failed to load students:', error);
-        } finally {
-          setLoadingStudents(false);
+      const studentCodeFromQuery = searchParams.get('studentCode');
+      if (studentCodeFromQuery) {
+        setSelectedStudentCode(studentCodeFromQuery);
+        setShowStudentSelection(false);
+      } else {
+        // Show student selection page
+        setShowStudentSelection(true);
+        setLoading(false);
+        return;
+      }
+    } else {
+      // For non-admin: use their own studentCode
+      if (user?.studentCode) {
+        setSelectedStudentCode(user.studentCode);
+      }
+    }
+  }, [user, router, isAdmin, searchParams]);
+
+  // Load faculties for student selection
+  useEffect(() => {
+    if (!showStudentSelection) return;
+
+    const loadFaculties = async () => {
+      setLoadingFaculties(true);
+      try {
+        const response = await getFaculties();
+        if (response.success && response.data) {
+          setFaculties(response.data);
         }
-      };
-      loadStudents();
+      } catch (error: any) {
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải danh sách khoa.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingFaculties(false);
+      }
+    };
+    loadFaculties();
+  }, [showStudentSelection, toast]);
+
+  // Load majors when facultyCode changes
+  useEffect(() => {
+    if (!showStudentSelection || facultyCode === 'all') {
+      setMajors([]);
+      setMajorCode('all');
+      return;
     }
 
+    const loadMajors = async () => {
+      setLoadingMajors(true);
+      try {
+        const response = await getMajors(facultyCode);
+        if (response.success && response.data) {
+          setMajors(response.data);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải danh sách ngành.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingMajors(false);
+      }
+    };
+    loadMajors();
+  }, [showStudentSelection, facultyCode, toast]);
+
+  // Load classes when facultyCode or majorCode changes
+  useEffect(() => {
+    if (!showStudentSelection || facultyCode === 'all') {
+      setClasses([]);
+      setClassCode('all');
+      return;
+    }
+
+    const loadClasses = async () => {
+      setLoadingClasses(true);
+      try {
+        const response = await getClasses(
+          facultyCode !== 'all' ? facultyCode : undefined,
+          majorCode !== 'all' ? majorCode : undefined
+        );
+        if (response.success && response.data) {
+          setClasses(response.data);
+        }
+      } catch (error: any) {
+        toast({
+          title: "Lỗi",
+          description: error.message || "Không thể tải danh sách lớp.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoadingClasses(false);
+      }
+    };
+    loadClasses();
+  }, [showStudentSelection, facultyCode, majorCode, toast]);
+
+  // Reset dependent dropdowns
+  useEffect(() => {
+    if (facultyCode === 'all') {
+      setMajorCode('all');
+      setClassCode('all');
+    }
+  }, [facultyCode]);
+
+  useEffect(() => {
+    if (majorCode === 'all') {
+      setClassCode('all');
+    }
+  }, [majorCode]);
+
+  // Load students for selection page
+  const loadStudentsForSelection = async () => {
+    setLoadingStudents(true);
+    try {
+      const response = await getStudents({
+        page,
+        size,
+        facultyCode: facultyCode && facultyCode !== 'all' ? facultyCode : undefined,
+        majorCode: majorCode && majorCode !== 'all' ? majorCode : undefined,
+        classCode: classCode && classCode !== 'all' ? classCode : undefined,
+      });
+      
+      if (response.success && response.data) {
+        let filtered = response.data.content || [];
+        if (search.trim()) {
+          const searchLower = search.toLowerCase();
+          filtered = filtered.filter(s => 
+            s.studentCode.toLowerCase().includes(searchLower) ||
+            s.fullName.toLowerCase().includes(searchLower) ||
+            s.className?.toLowerCase().includes(searchLower) ||
+            s.majorName?.toLowerCase().includes(searchLower) ||
+            s.facultyName?.toLowerCase().includes(searchLower)
+          );
+        }
+        
+        setStudents(filtered);
+        setTotalPages(response.data.totalPages || 0);
+        setTotalElements(response.data.totalElements || 0);
+      }
+    } catch (error: any) {
+      toast({
+        title: "Lỗi",
+        description: error.message || "Không thể tải danh sách sinh viên.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showStudentSelection) {
+      loadStudentsForSelection();
+    }
+  }, [showStudentSelection, page, size, facultyCode, majorCode, classCode]);
+
+  const handleSearch = () => {
+    setPage(0);
+    loadStudentsForSelection();
+  };
+
+  const handleSelectStudent = (studentCode: string) => {
+    router.push(`/evaluations/new?studentCode=${studentCode}`);
+  };
+
+  // Load rubric and period (main data loading) - only when student is selected
+  useEffect(() => {
+    if (!user || !canCreateEvaluation(user) || showStudentSelection) {
+      return;
+    }
+
+    if (isAdmin && !selectedStudentCode) {
+      return;
+    }
+
+    if (!isAdmin && !user?.studentCode) {
+      return;
+    }
+
+    let isMounted = true;
     const loadData = async () => {
       try {
         // Check for open period first
         setCheckingPeriod(true);
         try {
           const periodResponse = await getOpenPeriod();
-          // If success and has data, set it. If success but no data, that's OK (no period open)
-          if (periodResponse.success) {
-            if (periodResponse.data) {
-              setOpenPeriod(periodResponse.data);
-            }
-            // If no data, periodResponse.data will be null/undefined, which is fine
+          if (!isMounted) return;
+          
+          if (periodResponse.success && periodResponse.data) {
+            setOpenPeriod(periodResponse.data);
           }
         } catch (error) {
-          // Silently handle period check failure - it's not critical
-          // Continue loading rubric even if period check fails
-          // Don't set openPeriod, so it will show "no period" message
+          // Silently handle period check failure
         } finally {
-          setCheckingPeriod(false);
+          if (isMounted) {
+            setCheckingPeriod(false);
+          }
         }
         
         // Load rubric
-        // For admin creating evaluation for a student, use selected student's classCode
-        // For non-admin, use their own classCode
-        const classCodeForRubric = isAdmin && selectedStudentCode
-          ? students.find(s => s.studentCode === selectedStudentCode)?.classCode
-          : user?.classCode;
+        // For admin: need to fetch student info to get classCode
+        // For non-admin: use their own classCode
+        let classCodeForRubric = user?.classCode;
         
-        console.log('👤 Current user:', user);
-        console.log('📝 Student code:', isAdmin ? selectedStudentCode : user?.studentCode);
-        console.log('🏫 Class code for rubric:', classCodeForRubric);
+        if (isAdmin && selectedStudentCode) {
+          // Fetch student info to get classCode
+          try {
+            const { getStudentByCode } = await import('@/lib/student');
+            const studentResponse = await getStudentByCode(selectedStudentCode);
+            if (studentResponse.success && studentResponse.data) {
+              classCodeForRubric = studentResponse.data.classCode;
+            }
+          } catch (error) {
+            // Failed to fetch student info - continue with user's classCode
+          }
+        }
+        
         const rubricResponse = await getActiveRubric(undefined, classCodeForRubric);
-        console.log('📋 Rubric response:', rubricResponse);
+        if (!isMounted) return;
+        
         if (rubricResponse.success && rubricResponse.data) {
           setRubric(rubricResponse.data);
           
           const criteriaResponse = await getCriteriaByRubric(rubricResponse.data.id);
+          if (!isMounted) return;
+          
           if (criteriaResponse.success && criteriaResponse.data) {
             setCriteria(criteriaResponse.data);
-            // Initialize empty scores
             const initialScores: Record<number, Record<string, number>> = {};
             criteriaResponse.data.forEach(c => {
               initialScores[c.id] = {};
@@ -144,9 +353,8 @@ export default function NewEvaluationPage() {
           });
         }
       } catch (error: any) {
-        // If we reach here, it means all retries failed - this is a real error
-        // Retry logic in API client handles transient errors automatically
-        // If retry succeeds, we never reach this catch block
+        if (!isMounted) return;
+        
         let errorMessage = "Không thể tải rubric. Vui lòng thử lại.";
         
         if (error?.message?.includes('fetch') || error?.message?.includes('network') || error?.message?.includes('kết nối')) {
@@ -166,53 +374,19 @@ export default function NewEvaluationPage() {
           variant: "destructive"
         });
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     loadData();
-  }, [user, router, toast, isAdmin, selectedStudentCode, students]);
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [user, router, isAdmin, selectedStudentCode, showStudentSelection, toast]);
   
-  // Auto-set studentCode for non-admin users
-  useEffect(() => {
-    if (!isAdmin && user?.studentCode) {
-      setSelectedStudentCode(user.studentCode);
-    }
-  }, [isAdmin, user?.studentCode]);
-  
-  // Reload rubric when admin selects a different student
-  useEffect(() => {
-    if (isAdmin && selectedStudentCode && students.length > 0) {
-      const loadRubricForStudent = async () => {
-        try {
-          const selectedStudent = students.find(s => s.studentCode === selectedStudentCode);
-          if (!selectedStudent) return;
-          
-          const classCode = selectedStudent.classCode;
-          const rubricResponse = await getActiveRubric(undefined, classCode);
-          if (rubricResponse.success && rubricResponse.data) {
-            setRubric(rubricResponse.data);
-            
-            const criteriaResponse = await getCriteriaByRubric(rubricResponse.data.id);
-            if (criteriaResponse.success && criteriaResponse.data) {
-              setCriteria(criteriaResponse.data);
-              // Reset scores when rubric changes
-              const initialScores: Record<number, Record<string, number>> = {};
-              criteriaResponse.data.forEach(c => {
-                initialScores[c.id] = {};
-              });
-              setSubCriteriaScores(initialScores);
-              setSubCriteriaEvidence({});
-              setSubCriteriaFiles({});
-            }
-          }
-        } catch (error) {
-          console.error('Failed to reload rubric for selected student:', error);
-        }
-      };
-      loadRubricForStudent();
-    }
-  }, [isAdmin, selectedStudentCode, students.length]);
 
   // Auto-fill semester from open period when available
   useEffect(() => {
@@ -370,6 +544,191 @@ export default function NewEvaluationPage() {
     }
   };
 
+  // Show student selection page for admin
+  if (showStudentSelection) {
+    return (
+      <ProtectedRoute>
+        <DashboardLayout>
+          <div className="space-y-6">
+            <div>
+              <h1 className="text-3xl font-bold">Chọn Sinh viên</h1>
+              <p className="text-muted-foreground">
+                Chọn sinh viên để tạo đánh giá điểm rèn luyện
+              </p>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Tìm kiếm và Lọc</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  <div className="lg:col-span-2">
+                    <Input
+                      placeholder="Tìm kiếm theo mã SV, tên, lớp, ngành, khoa..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    />
+                  </div>
+                  <Select 
+                    value={facultyCode} 
+                    onValueChange={(value) => {
+                      setFacultyCode(value);
+                      setMajorCode('all');
+                      setClassCode('all');
+                    }}
+                    disabled={loadingFaculties}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingFaculties ? "Đang tải..." : "Tất cả Khoa"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả Khoa</SelectItem>
+                      {faculties.map((faculty) => (
+                        <SelectItem key={faculty.code} value={faculty.code}>
+                          {faculty.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select 
+                    value={majorCode} 
+                    onValueChange={(value) => {
+                      setMajorCode(value);
+                      setClassCode('all');
+                    }}
+                    disabled={facultyCode === 'all' || loadingMajors}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingMajors ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Ngành"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả Ngành</SelectItem>
+                      {majors.map((major) => (
+                        <SelectItem key={major.code} value={major.code}>
+                          {major.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select 
+                    value={classCode} 
+                    onValueChange={setClassCode}
+                    disabled={facultyCode === 'all' || loadingClasses}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={loadingClasses ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Lớp"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả Lớp</SelectItem>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.code} value={cls.code}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <Button onClick={handleSearch}>
+                    <Search className="mr-2 h-4 w-4" />
+                    Tìm kiếm
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Danh sách Sinh viên</CardTitle>
+                <CardDescription>
+                  Tổng số: {totalElements} sinh viên
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingStudents ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : students.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <Users className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Không tìm thấy sinh viên nào</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Mã SV</TableHead>
+                            <TableHead>Họ và Tên</TableHead>
+                            <TableHead>Lớp</TableHead>
+                            <TableHead>Ngành</TableHead>
+                            <TableHead>Khoa</TableHead>
+                            <TableHead className="text-right">Thao tác</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {students.map((student) => (
+                            <TableRow key={student.studentCode}>
+                              <TableCell className="font-medium">{student.studentCode}</TableCell>
+                              <TableCell>{student.fullName}</TableCell>
+                              <TableCell>{student.className || student.classCode || '-'}</TableCell>
+                              <TableCell>{student.majorName || student.majorCode || '-'}</TableCell>
+                              <TableCell>{student.facultyName || student.facultyCode || '-'}</TableCell>
+                              <TableCell className="text-right">
+                                <Button 
+                                  variant="default" 
+                                  size="sm"
+                                  onClick={() => handleSelectStudent(student.studentCode)}
+                                >
+                                  Chọn
+                                  <ArrowRight className="h-4 w-4 ml-1" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                    
+                    {totalPages > 1 && (
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="text-sm text-muted-foreground">
+                          Trang {page + 1} / {totalPages}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage(p => Math.max(0, p - 1))}
+                            disabled={page === 0}
+                          >
+                            Trước
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                            disabled={page >= totalPages - 1}
+                          >
+                            Sau
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </DashboardLayout>
+      </ProtectedRoute>
+    );
+  }
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -443,36 +802,26 @@ export default function NewEvaluationPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isAdmin && (
+              {isAdmin && selectedStudentCode && (
                 <div className="space-y-2">
                   <Label htmlFor="studentCode">Sinh viên *</Label>
-                  {loadingStudents ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="text-sm text-muted-foreground">Đang tải danh sách sinh viên...</span>
+                  <div className="p-3 border rounded-md bg-muted">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">{selectedStudentCode}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Đã chọn sinh viên. 
+                          <Button
+                            variant="link"
+                            className="p-0 h-auto ml-1"
+                            onClick={() => router.push('/evaluations/new')}
+                          >
+                            Chọn lại
+                          </Button>
+                        </p>
+                      </div>
                     </div>
-                  ) : (
-                    <Select
-                      value={selectedStudentCode}
-                      onValueChange={setSelectedStudentCode}
-                      required
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn sinh viên" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {students.map((student) => (
-                          <SelectItem key={student.studentCode} value={student.studentCode}>
-                            {student.studentCode} - {student.fullName}
-                            {student.className && ` (${student.className})`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Chọn sinh viên để tạo đánh giá thay cho họ
-                  </p>
+                  </div>
                 </div>
               )}
               <div className="space-y-2">

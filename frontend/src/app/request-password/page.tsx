@@ -64,9 +64,6 @@ export default function RequestPasswordPage() {
             <Award className="h-12 w-12 text-primary" />
           </div>
           <CardTitle className="text-2xl">Yêu cầu mật khẩu</CardTitle>
-          <CardDescription>
-            Nhập email trường để nhận mật khẩu đăng nhập. Tài khoản sẽ được tạo tự động lần đầu tiên.
-          </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
@@ -85,11 +82,6 @@ export default function RequestPasswordPage() {
                   required
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Định dạng: mã sinh viên@student.ptithcm.edu.vn<br/>
-                Ví dụ: n21dccn001@student.ptithcm.edu.vn<br/>
-                <span className="text-primary font-medium">Tên đăng nhập sẽ là mã sinh viên (ví dụ: n21dccn001)</span>
-              </p>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">

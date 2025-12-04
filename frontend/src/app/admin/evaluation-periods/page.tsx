@@ -104,7 +104,7 @@ export default function EvaluationPeriodsPage() {
         setRubrics(response.data);
       }
     } catch (error) {
-      console.error('Failed to load rubrics:', error);
+      // Failed to load rubrics
     }
   };
 

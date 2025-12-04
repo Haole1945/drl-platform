@@ -152,8 +152,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            // Log error but don't fail the period creation
-            System.err.println("Failed to create notifications for period: " + e.getMessage());
+            // Failed to create notifications for period - continue
         }
     }
     
@@ -202,7 +201,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Failed to create reminder notifications: " + e.getMessage());
+            // Failed to create reminder notifications - continue
         }
     }
     
@@ -240,7 +239,7 @@ public class NotificationService {
                         reviewerIds.addAll(monitorResponse.getData());
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to get CLASS_MONITOR IDs: " + e.getMessage());
+                    // Failed to get CLASS_MONITOR IDs - continue
                 }
                 
                 try {
@@ -250,7 +249,7 @@ public class NotificationService {
                         reviewerIds.addAll(unionResponse.getData());
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to get UNION_REPRESENTATIVE IDs: " + e.getMessage());
+                    // Failed to get UNION_REPRESENTATIVE IDs - continue
                 }
                 
                 try {
@@ -260,7 +259,7 @@ public class NotificationService {
                         reviewerIds.addAll(advisorResponse.getData());
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to get ADVISOR IDs: " + e.getMessage());
+                    // Failed to get ADVISOR IDs - continue
                 }
             } else if ("CLASS_APPROVED".equals(currentStatus)) {
                 // Faculty level reviewers
@@ -271,7 +270,7 @@ public class NotificationService {
                         reviewerIds.addAll(facultyResponse.getData());
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to get FACULTY_INSTRUCTOR IDs: " + e.getMessage());
+                    // Failed to get FACULTY_INSTRUCTOR IDs - continue
                 }
             } else if ("FACULTY_APPROVED".equals(currentStatus)) {
                 // CTSV level reviewers
@@ -282,7 +281,7 @@ public class NotificationService {
                         reviewerIds.addAll(ctsvResponse.getData());
                     }
                 } catch (Exception e) {
-                    System.err.println("Failed to get CTSV_STAFF IDs: " + e.getMessage());
+                    // Failed to get CTSV_STAFF IDs - continue
                 }
             }
             
@@ -318,7 +317,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Failed to create evaluation needs review notifications: " + e.getMessage());
+            // Failed to create evaluation needs review notifications - continue
         }
     }
     
@@ -406,7 +405,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Failed to create escalation notifications: " + e.getMessage());
+            // Failed to create escalation notifications - continue
         }
     }
     
@@ -452,7 +451,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Failed to create rubric activation notifications: " + e.getMessage());
+            // Failed to create rubric activation notifications - continue
         }
     }
     
@@ -496,7 +495,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            System.err.println("Failed to create rubric update notifications: " + e.getMessage());
+            // Failed to create rubric update notifications - continue
         }
     }
     

@@ -33,11 +33,8 @@ public class DataSeeder implements CommandLineRunner {
     public void run(String... args) throws Exception {
         // Only seed if database is empty (check if faculties exist)
         if (facultyRepository.count() > 0) {
-            System.out.println("Student service: Database already seeded. Skipping...");
             return;
         }
-        
-        System.out.println("Student service: Seeding initial data...");
         
         // 1. Create Faculties
         Faculty facultyCNTT2 = new Faculty("CNTT2", "Công nghệ Thông tin 2", 
@@ -53,7 +50,6 @@ public class DataSeeder implements CommandLineRunner {
         facultyRepository.save(facultyVT2);
         facultyRepository.save(facultyDT2);
         facultyRepository.save(facultyQTKD2);
-        System.out.println("✓ Created faculties (4 faculties)");
         
         // 2. Create Majors (Ngành học)
         // Khoa CNTT2: 3 ngành
@@ -88,26 +84,25 @@ public class DataSeeder implements CommandLineRunner {
         majorRepository.save(majorQT);
         majorRepository.save(majorMR);
         majorRepository.save(majorKT);
-        System.out.println("✓ Created majors (8 majors)");
         
         // 3. Create Classes (Format: DxxCQyyzz-N)
         // Khoa CNTT2
-        StudentClass classCN01 = new StudentClass("D21CQCN01-N", "D21CQCN01-N", "2024-2025", facultyCNTT2);
-        StudentClass classCN02 = new StudentClass("D21CQCN02-N", "D21CQCN02-N", "2024-2025", facultyCNTT2);
-        StudentClass classPT01 = new StudentClass("D21CQPT01-N", "D21CQPT01-N", "2024-2025", facultyCNTT2);
-        StudentClass classPT02 = new StudentClass("D21CQPT02-N", "D21CQPT02-N", "2024-2025", facultyCNTT2);
-        StudentClass classAT01 = new StudentClass("D21CQAT01-N", "D21CQAT01-N", "2024-2025", facultyCNTT2);
+        StudentClass classCN01 = new StudentClass("D21CQCN01-N", "D21CQCN01-N", "2024-2025", facultyCNTT2, majorCN);
+        StudentClass classCN02 = new StudentClass("D21CQCN02-N", "D21CQCN02-N", "2024-2025", facultyCNTT2, majorCN);
+        StudentClass classPT01 = new StudentClass("D21CQPT01-N", "D21CQPT01-N", "2024-2025", facultyCNTT2, majorPT);
+        StudentClass classPT02 = new StudentClass("D21CQPT02-N", "D21CQPT02-N", "2024-2025", facultyCNTT2, majorPT);
+        StudentClass classAT01 = new StudentClass("D21CQAT01-N", "D21CQAT01-N", "2024-2025", facultyCNTT2, majorAT);
         
         // Khoa VT2
-        StudentClass classVT01 = new StudentClass("D21CQVT01-N", "D21CQVT01-N", "2024-2025", facultyVT2);
+        StudentClass classVT01 = new StudentClass("D21CQVT01-N", "D21CQVT01-N", "2024-2025", facultyVT2, majorVT);
         
         // Khoa DT2
-        StudentClass classDT01 = new StudentClass("D21CQDT01-N", "D21CQDT01-N", "2024-2025", facultyDT2);
+        StudentClass classDT01 = new StudentClass("D21CQDT01-N", "D21CQDT01-N", "2024-2025", facultyDT2, majorDT);
         
         // Khoa QTKD2
-        StudentClass classQT01 = new StudentClass("D21CQQT01-N", "D21CQQT01-N", "2024-2025", facultyQTKD2);
-        StudentClass classMR01 = new StudentClass("D21CQMR01-N", "D21CQMR01-N", "2024-2025", facultyQTKD2);
-        StudentClass classKT01 = new StudentClass("D21CQKT01-N", "D21CQKT01-N", "2024-2025", facultyQTKD2);
+        StudentClass classQT01 = new StudentClass("D21CQQT01-N", "D21CQQT01-N", "2024-2025", facultyQTKD2, majorQT);
+        StudentClass classMR01 = new StudentClass("D21CQMR01-N", "D21CQMR01-N", "2024-2025", facultyQTKD2, majorMR);
+        StudentClass classKT01 = new StudentClass("D21CQKT01-N", "D21CQKT01-N", "2024-2025", facultyQTKD2, majorKT);
         
         studentClassRepository.save(classCN01);
         studentClassRepository.save(classCN02);
@@ -119,7 +114,6 @@ public class DataSeeder implements CommandLineRunner {
         studentClassRepository.save(classQT01);
         studentClassRepository.save(classMR01);
         studentClassRepository.save(classKT01);
-        System.out.println("✓ Created classes (10 classes)");
         
         // 4. Create Students (Sample data - format: NxxDCCyynnn)
         // Khoa CNTT2 - Ngành CN
@@ -210,8 +204,5 @@ public class DataSeeder implements CommandLineRunner {
         student10.setAddress("Hưng Yên");
         student10.setAcademicYear("2024-2025");
         studentRepository.save(student10);
-        
-        System.out.println("✓ Created students (10 students across all faculties and majors)");
-        System.out.println("✅ Student service: Data seeding completed successfully!");
     }
 }

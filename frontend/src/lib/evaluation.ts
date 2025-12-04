@@ -131,14 +131,11 @@ export async function getStudentEvaluations(
  * Get active rubric
  */
 export async function getActiveRubric(academicYear?: string, classCode?: string): Promise<ApiResponse<Rubric>> {
-  console.log('📤 getActiveRubric called with:', { academicYear, classCode });
   const params = new URLSearchParams();
   if (academicYear) params.append('academicYear', academicYear);
   if (classCode) params.append('classCode', classCode);
   const query = params.toString() ? `?${params.toString()}` : '';
-  const url = `/rubrics/active${query}`;
-  console.log('📤 Request URL:', url);
-  return apiClient.get(url);
+  return apiClient.get(`/rubrics/active${query}`);
 }
 
 /**
@@ -182,24 +179,17 @@ export async function createRubric(data: {
   isActive?: boolean;
   targetClasses?: string;
 }): Promise<ApiResponse<Rubric>> {
-  console.log('📤 API - createRubric called with data:', data);
-  
   const params = new URLSearchParams();
   params.append('name', data.name);
   if (data.description) params.append('description', data.description);
   params.append('maxScore', data.maxScore.toString());
   params.append('academicYear', data.academicYear);
   if (data.isActive !== undefined) {
-    console.log('📤 API - Adding isActive to params:', data.isActive);
     params.append('isActive', data.isActive.toString());
   }
   if (data.targetClasses) {
-    console.log('📤 API - Adding targetClasses to params:', data.targetClasses);
     params.append('targetClasses', data.targetClasses);
   }
-  
-  const url = `/rubrics?${params.toString()}`;
-  console.log('📤 API - Request URL:', url);
   
   return apiClient.post<Rubric>(`/rubrics?${params.toString()}`, {});
 }
@@ -218,24 +208,17 @@ export async function updateRubric(
     targetClasses?: string;
   }
 ): Promise<ApiResponse<Rubric>> {
-  console.log('📤 API - updateRubric called with ID:', id, 'data:', data);
-  
   const params = new URLSearchParams();
   if (data.name) params.append('name', data.name);
   if (data.description) params.append('description', data.description);
   if (data.isActive !== undefined) {
-    console.log('📤 API - Adding isActive to params:', data.isActive);
     params.append('isActive', data.isActive.toString());
   }
   if (data.targetClasses) {
-    console.log('📤 API - Adding targetClasses to params:', data.targetClasses);
     params.append('targetClasses', data.targetClasses);
   }
   if (data.maxScore !== undefined) params.append('maxScore', data.maxScore.toString());
   if (data.academicYear) params.append('academicYear', data.academicYear);
-  
-  const url = `/rubrics/${id}?${params.toString()}`;
-  console.log('📤 API - Request URL:', url);
   
   return apiClient.put<Rubric>(`/rubrics/${id}?${params.toString()}`, {});
 }

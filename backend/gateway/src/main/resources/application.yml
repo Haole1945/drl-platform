@@ -38,7 +38,7 @@ spring:
         - id: student-service
           uri: lb://student-service
           predicates:
-            - Path=/api/students/**,/api/training-points/**
+            - Path=/api/students/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
         

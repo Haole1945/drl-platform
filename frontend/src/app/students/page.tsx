@@ -110,15 +110,10 @@ export default function StudentsPage() {
       setLoadingFaculties(true);
       try {
         const response = await getFaculties();
-        console.log('Faculties response:', response);
         if (response.success && response.data) {
-          console.log('Faculties loaded:', response.data);
           setFaculties(response.data);
-        } else {
-          console.warn('Faculties response not successful:', response);
         }
       } catch (error: any) {
-        console.error('Error loading faculties:', error);
         toast({
           title: "Lỗi",
           description: error.message || "Không thể tải danh sách khoa.",
@@ -143,15 +138,10 @@ export default function StudentsPage() {
       setLoadingMajors(true);
       try {
         const response = await getMajors(facultyCode);
-        console.log('Majors response:', response);
         if (response.success && response.data) {
-          console.log('Majors loaded:', response.data);
           setMajors(response.data);
-        } else {
-          console.warn('Majors response not successful:', response);
         }
       } catch (error: any) {
-        console.error('Error loading majors:', error);
         toast({
           title: "Lỗi",
           description: error.message || "Không thể tải danh sách ngành.",
@@ -179,15 +169,10 @@ export default function StudentsPage() {
           facultyCode !== 'all' ? facultyCode : undefined,
           majorCode !== 'all' ? majorCode : undefined
         );
-        console.log('Classes response:', response);
         if (response.success && response.data) {
-          console.log('Classes loaded:', response.data);
           setClasses(response.data);
-        } else {
-          console.warn('Classes response not successful:', response);
         }
       } catch (error: any) {
-        console.error('Error loading classes:', error);
         toast({
           title: "Lỗi",
           description: error.message || "Không thể tải danh sách lớp.",
@@ -278,7 +263,7 @@ export default function StudentsPage() {
                     setMajorCode('all');
                     setClassCode('all');
                   }}
-                  disabled={loadingFaculties || isClassMonitorOnly()}
+                  disabled={loadingFaculties || (isClassMonitorOnly() ?? false)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={loadingFaculties ? "Đang tải..." : "Tất cả Khoa"} />
@@ -301,7 +286,7 @@ export default function StudentsPage() {
                     setMajorCode(value);
                     setClassCode('all');
                   }}
-                  disabled={facultyCode === 'all' || loadingMajors || isClassMonitorOnly()}
+                  disabled={facultyCode === 'all' || loadingMajors || (isClassMonitorOnly() ?? false)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={loadingMajors ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Ngành"} />
@@ -321,7 +306,7 @@ export default function StudentsPage() {
                 <Select 
                   value={classCode} 
                   onValueChange={setClassCode}
-                  disabled={facultyCode === 'all' || loadingClasses || isClassMonitorOnly()}
+                  disabled={facultyCode === 'all' || loadingClasses || (isClassMonitorOnly() ?? false)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder={loadingClasses ? "Đang tải..." : facultyCode === 'all' ? "Chọn khoa trước" : "Tất cả Lớp"} />

@@ -93,9 +93,6 @@ export default function NotificationsPage() {
       // For students - link to evaluation detail
       return `/evaluations/${notification.relatedId}`;
     }
-    if (notification.relatedType === 'RUBRIC' && notification.relatedId) {
-      return '/training-points';
-    }
     return null;
   };
 

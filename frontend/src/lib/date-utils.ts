@@ -30,7 +30,6 @@ export function parseBackendDate(dateValue?: string | number[]): Date | null {
       return date;
     }
   } catch (error) {
-    console.error('Error parsing date:', error, dateValue);
     return null;
   }
   
@@ -48,7 +47,6 @@ export function formatDateTime(dateValue?: string | number[]): string {
   try {
     return format(date, "dd/MM/yyyy 'lúc' HH:mm", { locale: vi });
   } catch (error) {
-    console.error('Error formatting date:', error);
     return 'N/A';
   }
 }
@@ -64,7 +62,6 @@ export function formatDate(dateValue?: string | number[]): string {
   try {
     return format(date, 'dd/MM/yyyy', { locale: vi });
   } catch (error) {
-    console.error('Error formatting date:', error);
     return 'N/A';
   }
 }
@@ -80,7 +77,6 @@ export function formatDateTimeWithSeconds(dateValue?: string | number[]): string
   try {
     return format(date, "dd/MM/yyyy 'lúc' HH:mm:ss", { locale: vi });
   } catch (error) {
-    console.error('Error formatting date:', error);
     return 'N/A';
   }
 }

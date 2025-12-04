@@ -113,15 +113,7 @@ export async function deleteStudent(studentCode: string): Promise<ApiResponse<vo
  * Get all faculties
  */
 export async function getFaculties(): Promise<ApiResponse<Faculty[]>> {
-  console.log('[DEBUG] getFaculties: Calling /students/faculties');
-  try {
-    const response = await apiClient.get<Faculty[]>('/students/faculties');
-    console.log('[DEBUG] getFaculties: Response received', response);
-    return response;
-  } catch (error) {
-    console.error('[DEBUG] getFaculties: Error occurred', error);
-    throw error;
-  }
+  return apiClient.get<Faculty[]>('/students/faculties');
 }
 
 /**

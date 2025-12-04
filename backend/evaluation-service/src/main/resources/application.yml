@@ -9,10 +9,10 @@ server:
 spring:
   application:
     name: evaluation-service
-  
+
   # Database configuration (will be overridden by environment variables in Docker)
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/drl}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/drl_evaluation}
     username: ${SPRING_DATASOURCE_USERNAME:drl}
     password: ${SPRING_DATASOURCE_PASSWORD:drl}
     # Connection Pool Configuration (HikariCP)
@@ -23,13 +23,13 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       leak-detection-threshold: 60000
-  
+
   jpa:
     hibernate:
-      ddl-auto: none  # Flyway handles schema migrations - no need for Hibernate to manage schema
-      # Options: 'none' (do nothing - Flyway handles it), 'validate' (check only), 
+      ddl-auto: none # Flyway handles schema migrations - no need for Hibernate to manage schema
+      # Options: 'none' (do nothing - Flyway handles it), 'validate' (check only),
       #          'update' (auto-update - risky), 'create' (drop and create - DANGEROUS)
-    show-sql: ${SHOW_SQL:false}  # Disable in production for performance
+    show-sql: ${SHOW_SQL:false} # Disable in production for performance
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -39,14 +39,18 @@ spring:
         order_inserts: true
         order_updates: true
         jdbc.batch_versioned_data: true
-  
+
   # Flyway Configuration - handles database migrations properly
   flyway:
     enabled: true
-    locations: classpath:db/migration
-    baseline-on-migrate: true  # Creates baseline if tables already exist
-    validate-on-migrate: true  # Validates migrations on startup
-  
+    locations: classpath:db/migration # Only scan main migration directory
+    baseline-on-migrate: false # Fresh database per service
+    validate-on-migrate: true
+    # Ignore files in subdirectories (consolidated, rollback, etc.)
+    ignore-migration-patterns:
+      - "*:ignored"
+      - "*:pending"
+
   # Multipart File Upload Configuration
   servlet:
     multipart:

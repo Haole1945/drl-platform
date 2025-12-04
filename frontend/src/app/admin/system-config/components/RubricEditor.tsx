@@ -125,10 +125,7 @@ export const RubricEditor: React.FC<RubricEditorProps> = ({
                       id="rubric-active"
                       checked={rubricFormData.isActive}
                       onChange={(e) => {
-                        console.log('🔘 Toggle changed - New value:', e.target.checked);
-                        console.log('🔘 Current rubricFormData.isActive:', rubricFormData.isActive);
                         setRubricFormData({ ...rubricFormData, isActive: e.target.checked });
-                        console.log('🔘 After setState - should be:', e.target.checked);
                       }}
                       className="sr-only peer"
                     />

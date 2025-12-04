@@ -34,5 +34,9 @@ public class CreateEvaluationPeriodRequest {
     private String description;
     
     private Boolean isActive = true;
+    
+    private Long rubricId; // ID of rubric to use for this period
+    
+    private String targetClasses; // Target specification (FACULTY:, MAJOR:, CLASS:)
 }
 

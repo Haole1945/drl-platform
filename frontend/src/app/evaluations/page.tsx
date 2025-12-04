@@ -111,7 +111,12 @@ export default function EvaluationsPage() {
                         </div>
                         {evaluation.submittedAt && (
                           <div className="text-sm text-muted-foreground">
-                            Nộp: {new Date(evaluation.submittedAt).toLocaleDateString('vi-VN')}
+                            Nộp: {(() => {
+                              const date = Array.isArray(evaluation.submittedAt)
+                                ? new Date(evaluation.submittedAt[0], evaluation.submittedAt[1] - 1, evaluation.submittedAt[2])
+                                : new Date(evaluation.submittedAt);
+                              return date.toLocaleDateString('vi-VN');
+                            })()}
                           </div>
                         )}
                         {evaluation.rejectionReason && (

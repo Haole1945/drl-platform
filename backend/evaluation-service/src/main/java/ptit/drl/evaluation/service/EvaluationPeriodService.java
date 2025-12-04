@@ -5,7 +5,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ptit.drl.evaluation.entity.EvaluationPeriod;
 import ptit.drl.evaluation.exception.ResourceNotFoundException;
+import ptit.drl.evaluation.exception.DuplicateResourceException;
 import ptit.drl.evaluation.repository.EvaluationPeriodRepository;
+import ptit.drl.evaluation.util.TargetMatcher;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -26,10 +28,24 @@ public class EvaluationPeriodService {
     
     /**
      * Get currently open evaluation period
+     * If multiple periods are open, returns the most recent one (by start date)
      */
     @Transactional(readOnly = true)
     public Optional<EvaluationPeriod> getOpenPeriod() {
-        return periodRepository.findOpenPeriod(LocalDate.now());
+        List<EvaluationPeriod> openPeriods = periodRepository.findOpenPeriods(LocalDate.now());
+        if (openPeriods.isEmpty()) {
+            return Optional.empty();
+        }
+        // Return the most recent period (first in list due to ORDER BY startDate DESC)
+        return Optional.of(openPeriods.get(0));
+    }
+    
+    /**
+     * Get all currently open evaluation periods
+     */
+    @Transactional(readOnly = true)
+    public List<EvaluationPeriod> getAllOpenPeriods() {
+        return periodRepository.findOpenPeriods(LocalDate.now());
     }
     
     /**
@@ -84,8 +100,12 @@ public class EvaluationPeriodService {
     
     /**
      * Create new evaluation period
+     * Validates that the period doesn't overlap with existing active periods (both time and target scope)
      */
     public EvaluationPeriod createPeriod(EvaluationPeriod period) {
+        // Validate no overlapping periods (check both time and target scope)
+        validateNoOverlap(period.getStartDate(), period.getEndDate(), period.getTargetClasses(), null);
+        
         EvaluationPeriod saved = periodRepository.save(period);
         
         // Create notifications for all users
@@ -104,9 +124,17 @@ public class EvaluationPeriodService {
     
     /**
      * Update evaluation period
+     * Validates that the updated period doesn't overlap with other active periods (both time and target scope)
      */
     public EvaluationPeriod updatePeriod(Long id, EvaluationPeriod updatedPeriod) {
         EvaluationPeriod period = getPeriodById(id);
+        
+        // Validate no overlapping periods (exclude current period, check both time and target scope)
+        if (updatedPeriod.getIsActive()) {
+            validateNoOverlap(updatedPeriod.getStartDate(), updatedPeriod.getEndDate(), 
+                updatedPeriod.getTargetClasses(), id);
+        }
+        
         period.setName(updatedPeriod.getName());
         period.setSemester(updatedPeriod.getSemester());
         period.setAcademicYear(updatedPeriod.getAcademicYear());
@@ -147,84 +175,64 @@ public class EvaluationPeriodService {
     /**
      * Get open period for specific class code
      * Filters by targetClasses to find matching period
+     * If multiple periods match, returns the most recent one
      */
     @Transactional(readOnly = true)
     public Optional<EvaluationPeriod> getOpenPeriodForClass(String classCode) {
-        Optional<EvaluationPeriod> openPeriod = getOpenPeriod();
+        List<EvaluationPeriod> openPeriods = periodRepository.findOpenPeriods(LocalDate.now());
         
-        if (openPeriod.isEmpty()) {
+        if (openPeriods.isEmpty()) {
             return Optional.empty();
         }
         
-        EvaluationPeriod period = openPeriod.get();
-        
-        // If no target specified, period applies to all
-        if (period.getTargetClasses() == null || period.getTargetClasses().isEmpty()) {
-            return openPeriod;
-        }
-        
-        // Check if classCode matches target
-        if (matchesTarget(classCode, period.getTargetClasses())) {
-            return openPeriod;
+        // Filter periods that match the class code
+        for (EvaluationPeriod period : openPeriods) {
+            // If no target specified, period applies to all
+            if (period.getTargetClasses() == null || period.getTargetClasses().isEmpty()) {
+                return Optional.of(period); // Return first matching period (most recent)
+            }
+            
+            // Check if classCode matches target
+            if (TargetMatcher.matches(classCode, period.getTargetClasses())) {
+                return Optional.of(period); // Return first matching period (most recent)
+            }
         }
         
         return Optional.empty();
     }
     
+    
     /**
-     * Check if classCode matches target specification
-     * Supports FACULTY:, MAJOR:, CLASS: prefixes
+     * Validate that no active periods overlap with the given date range AND target scope
+     * Two periods overlap if:
+     * 1. Time overlap: start1 <= end2 AND end1 >= start2
+     * 2. Target scope overlap: They apply to the same classes/faculties/majors/cohorts
+     * 
+     * @param startDate Start date of the period to validate
+     * @param endDate End date of the period to validate
+     * @param targetClasses Target classes/faculties/majors/cohorts of the period to validate
+     * @param excludeId ID of period to exclude from check (for update operations)
+     * @throws DuplicateResourceException if overlapping periods are found
      */
-    private boolean matchesTarget(String classCode, String targetClasses) {
-        if (targetClasses == null || targetClasses.isEmpty()) {
-            return true;
-        }
+    @Transactional(readOnly = true)
+    private void validateNoOverlap(LocalDate startDate, LocalDate endDate, String targetClasses, Long excludeId) {
+        List<EvaluationPeriod> overlappingPeriods = periodRepository.findOverlappingPeriods(
+            startDate, endDate, excludeId);
         
-        String target = targetClasses.trim();
-        
-        // FACULTY: prefix
-        if (target.startsWith("FACULTY:")) {
-            String facultyCodes = target.substring(8).trim();
-            if (facultyCodes.isEmpty()) return true;
-            
-            String[] faculties = facultyCodes.split(",");
-            for (String faculty : faculties) {
-                if (classCode.toUpperCase().contains(faculty.trim().toUpperCase())) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        // MAJOR: prefix
-        if (target.startsWith("MAJOR:")) {
-            String majorCodes = target.substring(6).trim();
-            if (majorCodes.isEmpty()) return true;
-            
-            String[] majors = majorCodes.split(",");
-            for (String major : majors) {
-                if (classCode.toUpperCase().contains(major.trim().toUpperCase())) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
-        // CLASS: prefix or legacy format
-        String classCodes = target.startsWith("CLASS:") 
-            ? target.substring(6).trim() 
-            : target;
-        
-        if (classCodes.isEmpty()) return true;
-        
-        String[] classes = classCodes.split(",");
-        for (String targetClass : classes) {
-            if (targetClass.trim().equalsIgnoreCase(classCode.trim())) {
-                return true;
+        // Filter periods that also have overlapping target scope
+        for (EvaluationPeriod existingPeriod : overlappingPeriods) {
+            if (TargetMatcher.hasOverlap(targetClasses, existingPeriod.getTargetClasses())) {
+                throw new DuplicateResourceException(
+                    String.format("Đợt đánh giá này trùng thời gian và phạm vi áp dụng với đợt đánh giá khác: '%s' (từ %s đến %s, phạm vi: %s). " +
+                        "Vui lòng chọn khoảng thời gian khác, phạm vi áp dụng khác, hoặc vô hiệu hóa đợt đánh giá trùng lặp.",
+                        existingPeriod.getName(),
+                        existingPeriod.getStartDate(),
+                        existingPeriod.getEndDate(),
+                        existingPeriod.getTargetClasses() != null ? existingPeriod.getTargetClasses() : "Tất cả")
+                );
             }
         }
-        
-        return false;
     }
+    
 }
 

@@ -92,7 +92,7 @@ export default function UsersPage() {
         setAvailableRoles(response.data);
       }
     } catch (error) {
-      console.error('Failed to load roles:', error);
+      // Failed to load roles
     }
   };
 

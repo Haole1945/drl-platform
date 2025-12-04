@@ -47,7 +47,7 @@ export function parseEvidence(evidence: string): ParsedEvidence[] {
   
   // Extract evidence part (after EVIDENCE: or legacy format)
   let evidencePart = cleanEvidence;
-  const evidenceMatch = cleanEvidence.match(/EVIDENCE:(.+)/s); // Add 's' flag to match newlines
+  const evidenceMatch = cleanEvidence.match(/EVIDENCE:([\s\S]+)/); // Use [\s\S] to match newlines (compatible with ES2017)
   if (evidenceMatch) {
     evidencePart = evidenceMatch[1];
   }

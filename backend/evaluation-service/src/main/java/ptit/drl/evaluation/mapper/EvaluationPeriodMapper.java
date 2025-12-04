@@ -4,6 +4,7 @@ import ptit.drl.evaluation.dto.CreateEvaluationPeriodRequest;
 import ptit.drl.evaluation.dto.EvaluationPeriodDTO;
 import ptit.drl.evaluation.dto.UpdateEvaluationPeriodRequest;
 import ptit.drl.evaluation.entity.EvaluationPeriod;
+import ptit.drl.evaluation.entity.Rubric;
 
 /**
  * Mapper for EvaluationPeriod entity and DTOs
@@ -45,6 +46,7 @@ public class EvaluationPeriodMapper {
     
     /**
      * Convert CreateEvaluationPeriodRequest to EvaluationPeriod entity
+     * Note: Rubric must be set separately using setRubric() after calling this method
      */
     public static EvaluationPeriod toEntity(CreateEvaluationPeriodRequest request) {
         if (request == null) {
@@ -59,12 +61,14 @@ public class EvaluationPeriodMapper {
         period.setEndDate(request.getEndDate());
         period.setDescription(request.getDescription());
         period.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+        period.setTargetClasses(request.getTargetClasses());
         
         return period;
     }
     
     /**
      * Update EvaluationPeriod entity from UpdateEvaluationPeriodRequest
+     * Note: Rubric must be set separately using setRubric() after calling this method
      */
     public static void updateEntity(EvaluationPeriod period, UpdateEvaluationPeriodRequest request) {
         if (period == null || request == null) {
@@ -78,6 +82,7 @@ public class EvaluationPeriodMapper {
         period.setEndDate(request.getEndDate());
         period.setDescription(request.getDescription());
         period.setIsActive(request.getIsActive());
+        period.setTargetClasses(request.getTargetClasses());
     }
 }
 

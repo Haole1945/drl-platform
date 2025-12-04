@@ -52,8 +52,7 @@ export default function DashboardPage() {
             // Handle case where student doesn't exist in student-service database
             // This can happen if user was created but student data wasn't seeded
             if (error?.message?.includes('not found') || error?.message?.includes('Student')) {
-              console.warn(`Student ${user.studentCode} not found in database. Please ensure student data is seeded.`);
-              // Don't show error to user, just log it - student can still use the system
+              // Don't show error to user - student can still use the system
               setMyEvaluations([]);
             } else {
               throw error; // Re-throw other errors

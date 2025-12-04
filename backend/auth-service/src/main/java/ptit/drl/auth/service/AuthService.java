@@ -184,7 +184,6 @@ public class AuthService {
                         .orElse(null);
                 if (classMonitorRole != null && !existingUser.getRoles().contains(classMonitorRole)) {
                     existingUser.addRole(classMonitorRole);
-                    System.out.println("[Auth Service] Auto-assigned CLASS_MONITOR role to existing user: " + studentCode);
                 }
             }
             
@@ -215,7 +214,6 @@ public class AuthService {
                         .orElse(null);
                 if (classMonitorRole != null) {
                     user.addRole(classMonitorRole);
-                    System.out.println("[Auth Service] Auto-assigned CLASS_MONITOR role to student: " + studentCode);
                 }
             }
             
@@ -306,9 +304,7 @@ public class AuthService {
                     user.setClassCode(studentResponse.getData().getClassCode());
                 }
             } catch (Exception e) {
-                // Log error but don't fail login
-                System.err.println("[Auth Service] Failed to fetch classCode for " + 
-                    user.getStudentCode() + ": " + e.getMessage());
+                // Failed to fetch classCode - continue without it
             }
         }
         
@@ -369,9 +365,7 @@ public class AuthService {
                     user.setClassCode(studentResponse.getData().getClassCode());
                 }
             } catch (Exception e) {
-                // Log error but don't fail refresh
-                System.err.println("[Auth Service] Failed to fetch classCode for " + 
-                    user.getStudentCode() + ": " + e.getMessage());
+                // Failed to fetch classCode - continue without it
             }
         }
         
@@ -409,9 +403,7 @@ public class AuthService {
                     user.setClassCode(studentResponse.getData().getClassCode());
                 }
             } catch (Exception e) {
-                // Log error but don't fail getCurrentUser
-                System.err.println("[Auth Service] Failed to fetch classCode for " + 
-                    user.getStudentCode() + ": " + e.getMessage());
+                // Failed to fetch classCode - continue without it
             }
         }
         

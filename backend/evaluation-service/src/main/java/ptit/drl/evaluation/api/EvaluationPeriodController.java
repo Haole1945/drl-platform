@@ -8,7 +8,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import ptit.drl.evaluation.dto.*;
 import ptit.drl.evaluation.entity.EvaluationPeriod;
+import ptit.drl.evaluation.entity.Rubric;
+import ptit.drl.evaluation.exception.ResourceNotFoundException;
 import ptit.drl.evaluation.mapper.EvaluationPeriodMapper;
+import ptit.drl.evaluation.repository.RubricRepository;
 import ptit.drl.evaluation.service.EvaluationPeriodService;
 
 import java.util.List;
@@ -24,6 +27,9 @@ public class EvaluationPeriodController {
     
     @Autowired
     private EvaluationPeriodService periodService;
+    
+    @Autowired
+    private RubricRepository rubricRepository;
     
     /**
      * GET /evaluation-periods/open - Get currently open period (public)
@@ -98,6 +104,14 @@ public class EvaluationPeriodController {
         }
         
         EvaluationPeriod period = EvaluationPeriodMapper.toEntity(request);
+        
+        // Set rubric if provided
+        if (request.getRubricId() != null) {
+            Rubric rubric = rubricRepository.findById(request.getRubricId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Rubric", "id", request.getRubricId()));
+            period.setRubric(rubric);
+        }
+        
         EvaluationPeriod saved = periodService.createPeriod(period);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(ApiResponse.success("Đã tạo đợt đánh giá thành công", EvaluationPeriodMapper.toDTO(saved)));
@@ -120,6 +134,15 @@ public class EvaluationPeriodController {
         
         EvaluationPeriod period = periodService.getPeriodById(id);
         EvaluationPeriodMapper.updateEntity(period, request);
+        
+        // Set rubric if provided (only update if rubricId is explicitly provided)
+        if (request.getRubricId() != null) {
+            Rubric rubric = rubricRepository.findById(request.getRubricId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Rubric", "id", request.getRubricId()));
+            period.setRubric(rubric);
+        }
+        // If rubricId is null, leave existing rubric unchanged (partial update behavior)
+        
         EvaluationPeriod updated = periodService.updatePeriod(id, period);
         return ResponseEntity.ok(
             ApiResponse.success("Đã cập nhật đợt đánh giá thành công", EvaluationPeriodMapper.toDTO(updated)));

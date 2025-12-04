@@ -49,12 +49,7 @@ public class RubricController {
     public ResponseEntity<ApiResponse<RubricDTO>> getActiveRubric(
             @RequestParam(required = false) String academicYear,
             @RequestParam(required = false) String classCode) {
-        System.out.println("🔍 GET /rubrics/active called");
-        System.out.println("🔍 academicYear: " + academicYear);
-        System.out.println("🔍 classCode: " + classCode);
         RubricDTO rubric = rubricService.getActiveRubric(academicYear, classCode);
-        System.out.println("✅ Returning rubric: " + rubric.getName());
-        System.out.println("✅ Rubric targetClasses: " + rubric.getTargetClasses());
         return ResponseEntity.ok(
             ApiResponse.success("Active rubric found", rubric));
     }
@@ -92,16 +87,8 @@ public class RubricController {
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(required = false) String targetClasses) {
         
-        System.out.println("🔍 BACKEND - updateRubric called");
-        System.out.println("🔍 BACKEND - ID: " + id);
-        System.out.println("🔍 BACKEND - isActive: " + isActive);
-        System.out.println("🔍 BACKEND - targetClasses: " + targetClasses);
-        
         RubricDTO rubric = rubricService.updateRubric(
             id, name, description, maxScore, academicYear, isActive, targetClasses);
-        
-        System.out.println("🔍 BACKEND - Updated rubric isActive: " + rubric.getIsActive());
-        System.out.println("🔍 BACKEND - Updated rubric targetClasses: " + rubric.getTargetClasses());
         
         return ResponseEntity.ok(
             ApiResponse.success("Rubric updated successfully", rubric));

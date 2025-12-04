@@ -60,21 +60,11 @@ public class StudentController {
      */
     @GetMapping("/faculties")
     public ResponseEntity<ApiResponse<List<FacultyDTO>>> getAllFaculties() {
-        System.out.println("=== DEBUG: getAllFaculties() called ===");
-        System.out.println("Request path: /students/faculties");
-        try {
-            List<Faculty> faculties = facultyRepository.findAll();
-            System.out.println("Found " + faculties.size() + " faculties");
-            List<FacultyDTO> facultyDTOs = faculties.stream()
-                .map(f -> new FacultyDTO(f.getCode(), f.getName(), f.getDescription()))
-                .collect(Collectors.toList());
-            System.out.println("Returning " + facultyDTOs.size() + " faculty DTOs");
-            return ResponseEntity.ok(ApiResponse.success("Faculties retrieved successfully", facultyDTOs));
-        } catch (Exception e) {
-            System.err.println("ERROR in getAllFaculties: " + e.getMessage());
-            e.printStackTrace();
-            throw e;
-        }
+        List<Faculty> faculties = facultyRepository.findAll();
+        List<FacultyDTO> facultyDTOs = faculties.stream()
+            .map(f -> new FacultyDTO(f.getCode(), f.getName(), f.getDescription()))
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(ApiResponse.success("Faculties retrieved successfully", facultyDTOs));
     }
     
     /**
@@ -196,18 +186,11 @@ public class StudentController {
     @GetMapping("/{studentCode}")
     public ResponseEntity<ApiResponse<StudentDTO>> getStudentByCode(
             @PathVariable String studentCode) {
-        System.out.println("=== DEBUG: getStudentByCode() called ===");
-        System.out.println("Request path: /students/{studentCode}");
-        System.out.println("studentCode parameter: '" + studentCode + "'");
-        System.out.println("WARNING: This endpoint was matched instead of /faculties!");
         try {
             StudentDTO student = studentService.getStudentByCode(studentCode);
             return ResponseEntity.ok(
                 ApiResponse.success("Student found", student));
         } catch (Exception e) {
-            System.err.println("ERROR in getStudentByCode: " + e.getMessage());
-            System.err.println("This means Spring matched /{studentCode} instead of /faculties");
-            e.printStackTrace();
             throw e;
         }
     }

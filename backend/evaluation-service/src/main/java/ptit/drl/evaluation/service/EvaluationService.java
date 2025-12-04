@@ -249,10 +249,6 @@ public class EvaluationService {
      */
     @Transactional
     public EvaluationDTO updateEvaluation(Long id, UpdateEvaluationRequest request) {
-        System.out.println("=== DEBUG UPDATE: updateEvaluation() called ===");
-        System.out.println("Evaluation ID: " + id);
-        System.out.println("Request details count: " + (request.getDetails() != null ? request.getDetails().size() : 0));
-        
         // Use optimized query with fetch join
         Evaluation evaluation = evaluationRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Evaluation", "id", id));
@@ -263,33 +259,17 @@ public class EvaluationService {
                 evaluation.getStatus().name(), "UPDATE");
         }
         
-        // Log existing details before deleting
-        System.out.println("Existing details count before delete: " + evaluation.getDetails().size());
-        evaluation.getDetails().forEach(detail -> {
-            System.out.println("  - Detail: criteriaId=" + detail.getCriteriaId() + 
-                ", score=" + detail.getScore() + 
-                ", comment length=" + (detail.getComment() != null ? detail.getComment().length() : 0));
-        });
-        
         // Delete existing details properly to avoid orphanRemoval issues
         // Create a copy of the list to avoid ConcurrentModificationException
         List<EvaluationDetail> detailsToDelete = new ArrayList<>(evaluation.getDetails());
         // Remove all from the collection (orphanRemoval will handle deletion)
         evaluation.getDetails().removeAll(detailsToDelete);
         evaluationRepository.flush(); // Flush to ensure old details are deleted
-        System.out.println("Deleted existing details, collection size now: " + evaluation.getDetails().size());
         
         // Create new details (exactly same logic as create)
         List<EvaluationDetail> details = new ArrayList<>();
         double totalScore = 0.0;
         for (CreateEvaluationDetailRequest detailRequest : request.getDetails()) {
-            System.out.println("Processing detail request: criteriaId=" + detailRequest.getCriteriaId() + 
-                ", score=" + detailRequest.getScore());
-            System.out.println("  Evidence length: " + (detailRequest.getEvidence() != null ? detailRequest.getEvidence().length() : 0));
-            System.out.println("  Evidence preview: " + (detailRequest.getEvidence() != null && detailRequest.getEvidence().length() > 0 
-                ? detailRequest.getEvidence().substring(0, Math.min(200, detailRequest.getEvidence().length())) + "..." 
-                : "null"));
-            
             Criteria criteria = criteriaRepository.findById(detailRequest.getCriteriaId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                         "Criteria", "id", detailRequest.getCriteriaId()));
@@ -315,20 +295,12 @@ public class EvaluationService {
             String evidence = detailRequest.getEvidence();
             if (evidence != null && evidence.startsWith("Evidence: ")) {
                 evidence = evidence.substring("Evidence: ".length());
-                System.out.println("  Removed 'Evidence: ' prefix");
             }
             validatedDetail.setEvidence(evidence); // Evidence without prefix
             validatedDetail.setNote(detailRequest.getNote());
             
             EvaluationDetail detail = EvaluationMapper.toDetailEntity(
                 validatedDetail, evaluation, criteria);
-            
-            System.out.println("  Created detail entity: criteriaId=" + detail.getCriteriaId() + 
-                ", score=" + detail.getScore() + 
-                ", comment length=" + (detail.getComment() != null ? detail.getComment().length() : 0));
-            System.out.println("  Comment preview: " + (detail.getComment() != null && detail.getComment().length() > 0 
-                ? detail.getComment().substring(0, Math.min(200, detail.getComment().length())) + "..." 
-                : "null"));
             
             details.add(detail);
             totalScore += score;
@@ -339,39 +311,16 @@ public class EvaluationService {
         evaluation.getDetails().addAll(details);
         evaluation.setTotalPoints(totalScore);
         
-        System.out.println("Added " + details.size() + " new details to collection. Total now: " + evaluation.getDetails().size());
-        
-        System.out.println("Saving evaluation with " + details.size() + " details, totalScore=" + totalScore);
-        
         // Save (exactly same as create)
         Evaluation saved = evaluationRepository.save(evaluation);
-        
-        System.out.println("Saved evaluation ID: " + saved.getId() + ". Reloading...");
         
         // Reload to ensure all details are properly loaded
         Evaluation updated = evaluationRepository.findByIdWithRelations(saved.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Evaluation", "id", saved.getId()));
         
-        System.out.println("Reloaded evaluation. Details count: " + updated.getDetails().size());
-        updated.getDetails().forEach(detail -> {
-            System.out.println("  - Reloaded detail: criteriaId=" + detail.getCriteriaId() + 
-                ", score=" + detail.getScore() + 
-                ", comment length=" + (detail.getComment() != null ? detail.getComment().length() : 0));
-            if (detail.getComment() != null && detail.getComment().length() > 0) {
-                System.out.println("    Comment preview: " + detail.getComment().substring(0, Math.min(200, detail.getComment().length())) + "...");
-            }
-        });
-        
         EvaluationDTO result = EvaluationMapper.toDTO(updated);
         
-        System.out.println("Response DTO details count: " + (result.getDetails() != null ? result.getDetails().size() : 0));
-        if (result.getDetails() != null) {
-            result.getDetails().forEach(detail -> {
-                System.out.println("  - Response detail: criteriaId=" + detail.getCriteriaId() + 
-                    ", evidence length=" + (detail.getEvidence() != null ? detail.getEvidence().length() : 0));
-            });
-        }
-        System.out.println("=== DEBUG UPDATE: updateEvaluation() completed ===");
+        return result;
         
         return result;
     }
@@ -457,7 +406,7 @@ public class EvaluationService {
                     }
                 }
             } catch (Exception e) {
-                System.err.println("Failed to create submit notifications: " + e.getMessage());
+                // Failed to create submit notifications - continue
             }
         }
         
@@ -540,7 +489,7 @@ public class EvaluationService {
                     }
                 }
             } catch (Exception e) {
-                System.err.println("Failed to create approval notifications: " + e.getMessage());
+                // Failed to create approval notifications - continue
             }
         }
         
@@ -596,8 +545,7 @@ public class EvaluationService {
                     );
                 }
             } catch (Exception e) {
-                // Log error but don't fail the rejection
-                System.err.println("Failed to create rejection notification: " + e.getMessage());
+                // Failed to create rejection notification - continue
             }
         }
         
@@ -729,8 +677,7 @@ public class EvaluationService {
             // Note: File deletion should be handled by file service
             // For now, we'll just delete the evaluation and let cascade handle details
         } catch (Exception e) {
-            // Log but don't fail if file deletion fails
-            System.err.println("Warning: Failed to delete files for evaluation " + id + ": " + e.getMessage());
+            // Failed to delete files - continue
         }
         
         // Delete evaluation (cascade will handle details and history)

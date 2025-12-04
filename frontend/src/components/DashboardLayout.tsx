@@ -73,10 +73,6 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
                     <Users className="inline h-4 w-4 mr-1" />
                     Students
                   </Link>
-                  <Link href="/training-points" className="text-sm font-medium hover:text-primary transition-colors">
-                    <Award className="inline h-4 w-4 mr-1" />
-                    Training Points
-                  </Link>
                 </>
               )}
               {canManagePeriods && (

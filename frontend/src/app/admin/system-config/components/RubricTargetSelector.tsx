@@ -12,7 +12,7 @@ interface RubricTargetSelectorProps {
   onChange: (value: string) => void;
 }
 
-type FilterType = 'ALL' | 'FACULTY' | 'MAJOR' | 'CLASS';
+type FilterType = 'ALL' | 'FACULTY' | 'MAJOR' | 'CLASS' | 'COHORT';
 
 export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ value, onChange }) => {
   const [filterType, setFilterType] = useState<FilterType>('ALL');
@@ -26,6 +26,15 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
   const [selectedFaculties, setSelectedFaculties] = useState<string[]>([]);
   const [selectedMajors, setSelectedMajors] = useState<string[]>([]);
   const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
+  const [selectedCohorts, setSelectedCohorts] = useState<string[]>([]);
+  const [cohorts, setCohorts] = useState<Map<string, Class[]>>(new Map());
+
+  // Extract cohort from class code (e.g., D21CQCN01-N -> D21)
+  const extractCohort = (classCode: string): string | null => {
+    // Match pattern: D21, D22, D23, etc. (letter + 2 digits at start)
+    const match = classCode.match(/^([A-Z]\d{2})/);
+    return match ? match[1] : null;
+  };
 
   // Parse initial value
   useEffect(() => {
@@ -35,12 +44,17 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
       setFilterType('FACULTY');
     } else if (value.startsWith('MAJOR:')) {
       setFilterType('MAJOR');
+    } else if (value.startsWith('COHORT:')) {
+      setFilterType('COHORT');
+      const codes = value.substring(7).split(',').map(c => c.trim()).filter(Boolean);
+      setSelectedCohorts(codes);
     } else if (value.startsWith('CLASS:')) {
       setFilterType('CLASS');
       const codes = value.substring(6).split(',').map(c => c.trim()).filter(Boolean);
       setSelectedClasses(codes);
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
 
   // Load faculties when filter type changes
   useEffect(() => {
@@ -51,8 +65,10 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
     setSelectedFaculties([]);
     setSelectedMajors([]);
     setSelectedClasses([]);
+    setSelectedCohorts([]);
     setMajors([]);
     setClasses([]);
+    setCohorts(new Map());
   }, [filterType]);
 
   // Load majors when faculties are selected
@@ -75,6 +91,43 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
     }
   }, [selectedMajors, filterType]);
 
+  // Load all classes and group by cohort when COHORT filter is selected
+  useEffect(() => {
+    if (filterType === 'COHORT') {
+      loadAllClassesForCohort();
+    } else {
+      setCohorts(new Map());
+      setSelectedCohorts([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterType]);
+
+  const loadAllClassesForCohort = async () => {
+    setLoadingClasses(true);
+    try {
+      // Load all classes (no filter)
+      const response = await getClasses();
+      if (response.success && response.data) {
+        // Group classes by cohort
+        const cohortMap = new Map<string, Class[]>();
+        response.data.forEach(cls => {
+          const cohort = extractCohort(cls.code);
+          if (cohort) {
+            if (!cohortMap.has(cohort)) {
+              cohortMap.set(cohort, []);
+            }
+            cohortMap.get(cohort)!.push(cls);
+          }
+        });
+        setCohorts(cohortMap);
+      }
+    } catch (error) {
+      // Failed to load classes for cohort
+    } finally {
+      setLoadingClasses(false);
+    }
+  };
+
   const loadFaculties = async () => {
     setLoadingFaculties(true);
     try {
@@ -83,7 +136,7 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
         setFaculties(response.data);
       }
     } catch (error) {
-      console.error('Failed to load faculties:', error);
+      // Failed to load faculties
     } finally {
       setLoadingFaculties(false);
     }
@@ -97,7 +150,7 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
         setMajors(response.data);
       }
     } catch (error) {
-      console.error('Failed to load majors:', error);
+      // Failed to load majors
     } finally {
       setLoadingMajors(false);
     }
@@ -111,7 +164,7 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
         setClasses(response.data);
       }
     } catch (error) {
-      console.error('Failed to load classes:', error);
+      // Failed to load classes
     } finally {
       setLoadingClasses(false);
     }
@@ -142,7 +195,7 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
       
       setMajors(allMajors);
     } catch (error) {
-      console.error('Failed to load majors for multiple faculties:', error);
+      // Failed to load majors for multiple faculties
     } finally {
       setLoadingMajors(false);
     }
@@ -174,7 +227,7 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
       
       setClasses(allClasses);
     } catch (error) {
-      console.error('Failed to load classes for multiple majors:', error);
+      // Failed to load classes for multiple majors
     } finally {
       setLoadingClasses(false);
     }
@@ -227,6 +280,15 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
     onChange(`CLASS:${newSelected.join(',')}`);
   };
 
+  const handleCohortToggle = (cohort: string) => {
+    const newSelected = selectedCohorts.includes(cohort)
+      ? selectedCohorts.filter(c => c !== cohort)
+      : [...selectedCohorts, cohort];
+    
+    setSelectedCohorts(newSelected);
+    onChange(`COHORT:${newSelected.join(',')}`);
+  };
+
   return (
     <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
       <Label className="text-base font-medium">Áp dụng cho các lớp</Label>
@@ -235,7 +297,7 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
       </p>
       
       {/* Filter Type Selection */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-5 gap-2">
         <Button
           type="button"
           variant={filterType === 'ALL' ? "default" : "outline"}
@@ -265,6 +327,15 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
         </Button>
         <Button
           type="button"
+          variant={filterType === 'COHORT' ? "default" : "outline"}
+          size="sm"
+          onClick={() => handleFilterTypeChange('COHORT')}
+          className="w-full"
+        >
+          🔑 Theo khóa
+        </Button>
+        <Button
+          type="button"
           variant={filterType === 'CLASS' ? "default" : "outline"}
           size="sm"
           onClick={() => handleFilterTypeChange('CLASS')}
@@ -277,11 +348,12 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
       {/* Progressive disclosure based on filter type */}
       {filterType !== 'ALL' && (
         <div className="space-y-4">
-          {/* Step 1: Faculty Selection */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">
-              {filterType === 'FACULTY' ? 'Chọn khoa (có thể chọn nhiều)' : '1️⃣ Chọn khoa (có thể chọn nhiều)'}
-            </Label>
+          {/* Step 1: Faculty Selection (not shown for COHORT) */}
+          {filterType !== 'COHORT' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                {filterType === 'FACULTY' ? 'Chọn khoa (có thể chọn nhiều)' : '1️⃣ Chọn khoa (có thể chọn nhiều)'}
+              </Label>
             {loadingFaculties ? (
               <div className="flex items-center justify-center p-4 border rounded-md">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -312,7 +384,8 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
                 ✓ Đã chọn: {selectedFaculties.length} khoa
               </p>
             )}
-          </div>
+            </div>
+          )}
 
           {/* Step 2: Major Selection (unlocked after faculty) */}
           {(filterType === 'MAJOR' || filterType === 'CLASS') && (
@@ -353,6 +426,66 @@ export const RubricTargetSelector: React.FC<RubricTargetSelectorProps> = ({ valu
               {selectedMajors.length > 0 && (
                 <p className="text-xs text-green-600 font-medium">
                   ✓ Đã chọn: {selectedMajors.length} ngành
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Cohort Selection (for COHORT filter) */}
+          {filterType === 'COHORT' && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">
+                Chọn khóa (có thể chọn nhiều)
+              </Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                Khóa được tự động trích xuất từ mã lớp (ví dụ: D21CQCN01-N → Khóa D21)
+              </p>
+              {loadingClasses ? (
+                <div className="flex items-center justify-center p-4 border rounded-md">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+              ) : (
+                <ScrollArea className="h-[200px] border rounded-md p-3">
+                  <div className="space-y-3">
+                    {Array.from(cohorts.entries())
+                      .sort(([a], [b]) => b.localeCompare(a)) // Sort descending (newest first)
+                      .map(([cohort, cohortClasses]) => (
+                        <div key={cohort} className="space-y-2">
+                          <div className="flex items-center space-x-2 p-2 rounded hover:bg-accent bg-muted/50">
+                            <Checkbox
+                              id={`cohort-${cohort}`}
+                              checked={selectedCohorts.includes(cohort)}
+                              onCheckedChange={() => handleCohortToggle(cohort)}
+                            />
+                            <label
+                              htmlFor={`cohort-${cohort}`}
+                              className="text-sm font-semibold cursor-pointer flex-1"
+                            >
+                              🔑 Khóa {cohort} ({cohortClasses.length} lớp)
+                            </label>
+                          </div>
+                          {selectedCohorts.includes(cohort) && (
+                            <div className="ml-6 space-y-1 pl-2 border-l-2 border-primary/30">
+                              {cohortClasses.slice(0, 5).map((cls) => (
+                                <div key={cls.code} className="text-xs text-muted-foreground">
+                                  • {cls.name} ({cls.code})
+                                </div>
+                              ))}
+                              {cohortClasses.length > 5 && (
+                                <div className="text-xs text-muted-foreground italic">
+                                  ... và {cohortClasses.length - 5} lớp khác
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </ScrollArea>
+              )}
+              {selectedCohorts.length > 0 && (
+                <p className="text-xs text-green-600 font-medium">
+                  ✓ Đã chọn: {selectedCohorts.length} khóa
                 </p>
               )}
             </div>

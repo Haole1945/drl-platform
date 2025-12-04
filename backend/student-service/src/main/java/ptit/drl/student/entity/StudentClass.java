@@ -29,6 +29,10 @@ public class StudentClass {
     @JoinColumn(name = "faculty_code", nullable = false)
     private Faculty faculty;
     
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "major_code", nullable = false)
+    private Major major;
+    
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -43,11 +47,12 @@ public class StudentClass {
     // Constructors
     public StudentClass() {}
     
-    public StudentClass(String code, String name, String academicYear, Faculty faculty) {
+    public StudentClass(String code, String name, String academicYear, Faculty faculty, Major major) {
         this.code = code;
         this.name = name;
         this.academicYear = academicYear;
         this.faculty = faculty;
+        this.major = major;
     }
     
     // Getters and Setters
@@ -81,6 +86,14 @@ public class StudentClass {
     
     public void setFaculty(Faculty faculty) {
         this.faculty = faculty;
+    }
+    
+    public Major getMajor() {
+        return major;
+    }
+    
+    public void setMajor(Major major) {
+        this.major = major;
     }
     
     public LocalDateTime getCreatedAt() {

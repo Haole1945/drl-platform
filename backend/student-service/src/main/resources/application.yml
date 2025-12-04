@@ -7,7 +7,7 @@ spring:
 
   # Database configuration (will be overridden by environment variables in Docker)
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/drl}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/drl_student}
     username: ${SPRING_DATASOURCE_USERNAME:drl}
     password: ${SPRING_DATASOURCE_PASSWORD:drl}
     # Connection Pool Configuration (HikariCP)
@@ -21,7 +21,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update # Auto-create/update database schema from entities
+      ddl-auto: none  # Flyway handles schema migrations - no need for Hibernate to manage schema
     show-sql: ${SHOW_SQL:false} # Disable in production for performance
     properties:
       hibernate:
@@ -32,6 +32,13 @@ spring:
         order_inserts: true
         order_updates: true
         jdbc.batch_versioned_data: true
+
+  # Flyway Configuration - handles database migrations properly
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false  # Fresh database per service
+    validate-on-migrate: true
 
 eureka:
   client:

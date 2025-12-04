@@ -95,9 +95,6 @@ export default function LoginPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                Bạn có thể đăng nhập bằng email trường hoặc mã sinh viên (không phân biệt hoa thường)
-              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>

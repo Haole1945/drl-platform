@@ -20,19 +20,6 @@ export interface Student {
   };
 }
 
-export interface TrainingPoint {
-  id: number;
-  studentCode: string;
-  semester: string;
-  academicYear: string;
-  points: number;
-  category: string;
-  description: string;
-  evidenceUrl?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface Rubric {
   id: number;
   name: string;

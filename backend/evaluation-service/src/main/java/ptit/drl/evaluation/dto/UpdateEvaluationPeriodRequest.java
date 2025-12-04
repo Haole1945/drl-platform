@@ -35,5 +35,9 @@ public class UpdateEvaluationPeriodRequest {
     
     @NotNull(message = "Trạng thái hoạt động không được để trống")
     private Boolean isActive;
+    
+    private Long rubricId; // ID of rubric to use for this period
+    
+    private String targetClasses; // Target specification (FACULTY:, MAJOR:, CLASS:)
 }
 

@@ -41,8 +41,14 @@ export default function EditEvaluationPage() {
   // Parse criteria with sub-criteria
   const criteriaWithSubCriteria = useMemo(() => {
     return criteria.map(criterion => {
-      const subCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
+      const parsedSubCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
       const scores = subCriteriaScores[criterion.id] || {};
+      // Map parsed sub-criteria to include score and evidence
+      const subCriteria = parsedSubCriteria.map(sub => ({
+        ...sub,
+        score: scores[sub.id] || 0,
+        evidence: subCriteriaEvidence[criterion.id]?.[sub.id] || '',
+      }));
       const totalScore = calculateCriteriaTotal(subCriteria, scores);
       
       return {
@@ -51,7 +57,7 @@ export default function EditEvaluationPage() {
         totalScore,
       };
     });
-  }, [criteria, subCriteriaScores]);
+  }, [criteria, subCriteriaScores, subCriteriaEvidence]);
 
   const totalScore = useMemo(() => {
     return criteriaWithSubCriteria.reduce((sum, c) => sum + c.totalScore, 0);

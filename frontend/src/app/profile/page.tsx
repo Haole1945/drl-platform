@@ -61,7 +61,7 @@ export default function ProfilePage() {
             setStudentInfo(response.data);
           }
         } catch (error) {
-          console.error('Failed to load student info:', error);
+          // Failed to load student info - continue without it
         } finally {
           setLoadingStudent(false);
         }
