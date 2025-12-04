@@ -571,8 +571,8 @@ export default function EvaluationDetailPage() {
                               <span className="text-xs text-muted-foreground text-center">-</span>
                             )}
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
                   ) : (
                     // Fallback: If no sub-criteria, show simple format
