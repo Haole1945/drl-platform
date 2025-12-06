@@ -65,7 +65,7 @@ eureka:
       defaultZone: ${EUREKA_SERVER_URL:http://eureka-server:8761/eureka/}
   instance:
     prefer-ip-address: true
-      hostname: ${EUREKA_INSTANCE_HOSTNAME:evaluation-service}
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:evaluation-service}
 
 
 feign:

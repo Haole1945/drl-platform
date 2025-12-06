@@ -321,8 +321,6 @@ public class EvaluationService {
         EvaluationDTO result = EvaluationMapper.toDTO(updated);
         
         return result;
-        
-        return result;
     }
     
     /**

@@ -105,7 +105,7 @@ class ApiClient {
       // If no token and this is not a public endpoint, we should not make the request
       // Public endpoints are handled by the backend, but most endpoints require auth
       // Don't log warning for public endpoints
-      const publicEndpoints = ['/auth/login', '/auth/register', '/auth/refresh', '/evaluation-periods/open'];
+      const publicEndpoints = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/request-password', '/evaluation-periods/open'];
       const isPublic = publicEndpoints.some(ep => endpoint.includes(ep));
       if (!isPublic) {
         // Token is missing for a protected endpoint - this is a real error
