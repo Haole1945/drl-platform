@@ -237,7 +237,7 @@ export default function StudentsPage() {
                 Xem và quản lý thông tin sinh viên
               </p>
             </div>
-            {hasAnyRole(user, ['ADMIN']) && (
+            {hasAnyRole(user, ['ADMIN', 'FACULTY_INSTRUCTOR']) && (
               <Link href="/admin/students/new">
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />

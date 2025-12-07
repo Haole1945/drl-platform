@@ -215,7 +215,7 @@ export default function ProfilePage() {
                   )}
                   {studentInfo.academicYear && (
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Năm học</label>
+                      <label className="text-sm font-medium text-muted-foreground">Niên khóa</label>
                       <p className="text-sm font-medium mt-1">{studentInfo.academicYear}</p>
                     </div>
                   )}

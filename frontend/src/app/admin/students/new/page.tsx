@@ -236,7 +236,7 @@ export default function CreateStudentPage() {
   };
 
   return (
-    <ProtectedRoute allowedRoles={['ADMIN']}>
+    <ProtectedRoute allowedRoles={['ADMIN', 'FACULTY_INSTRUCTOR']}>
       <DashboardLayout>
         <div className="space-y-6">
           <div className="flex items-center gap-4">
@@ -344,7 +344,7 @@ export default function CreateStudentPage() {
 
                   {/* Academic Year */}
                   <div className="space-y-2">
-                    <Label htmlFor="academicYear">Năm Học</Label>
+                    <Label htmlFor="academicYear">Niên khóa</Label>
                     <Input
                       id="academicYear"
                       name="academicYear"

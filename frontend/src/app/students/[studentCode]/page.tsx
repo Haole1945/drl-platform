@@ -174,7 +174,7 @@ export default function StudentDetailPage() {
                 </div>
                 {student.academicYear && (
                   <div>
-                    <div className="text-sm font-medium text-muted-foreground">Năm học</div>
+                    <div className="text-sm font-medium text-muted-foreground">Niên khóa</div>
                     <div>{student.academicYear}</div>
                   </div>
                 )}
