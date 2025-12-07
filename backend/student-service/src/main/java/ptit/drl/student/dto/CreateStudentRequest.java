@@ -1,5 +1,6 @@
 package ptit.drl.student.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -42,6 +43,15 @@ public class CreateStudentRequest {
     
     @NotBlank(message = "Faculty code is required")
     private String facultyCode;
+    
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    @Pattern(
+        regexp = "^[a-z0-9]+@student\\.ptithcm\\.edu\\.vn$",
+        message = "Email must be a valid school email (format: studentCode@student.ptithcm.edu.vn)"
+    )
+    @Size(max = 100, message = "Email must not exceed 100 characters")
+    private String email;
     
     // Getters and Setters
     public String getStudentCode() {
@@ -122,6 +132,14 @@ public class CreateStudentRequest {
     
     public void setFacultyCode(String facultyCode) {
         this.facultyCode = facultyCode;
+    }
+    
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
     }
 }
 

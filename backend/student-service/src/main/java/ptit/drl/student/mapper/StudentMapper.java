@@ -49,6 +49,9 @@ public class StudentMapper {
         // Map position
         dto.setPosition(student.getPosition());
         
+        // Map email
+        dto.setEmail(student.getEmail());
+        
         return dto;
     }
     
@@ -71,6 +74,7 @@ public class StudentMapper {
         student.setPhone(request.getPhone());
         student.setAddress(request.getAddress());
         student.setAcademicYear(request.getAcademicYear());
+        student.setEmail(request.getEmail());
         student.setStudentClass(studentClass);
         student.setMajor(major);
         student.setFaculty(faculty);
@@ -112,6 +116,10 @@ public class StudentMapper {
         
         if (request.getAcademicYear() != null) {
             student.setAcademicYear(request.getAcademicYear());
+        }
+        
+        if (request.getEmail() != null) {
+            student.setEmail(request.getEmail());
         }
         
         if (studentClass != null) {

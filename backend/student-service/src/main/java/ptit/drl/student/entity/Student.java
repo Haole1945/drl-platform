@@ -45,6 +45,9 @@ public class Student {
     @Column(name = "position", length = 50)
     private String position; // Chức vụ: NONE, CLASS_MONITOR, VICE_MONITOR, SECRETARY, etc.
     
+    @Column(name = "email", length = 100)
+    private String email; // Email trường (format: studentCode@student.ptithcm.edu.vn)
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_code", nullable = false)
     private StudentClass studentClass;
@@ -143,6 +146,14 @@ public class Student {
     
     public void setPosition(String position) {
         this.position = position;
+    }
+    
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
     }
     
     public StudentClass getStudentClass() {

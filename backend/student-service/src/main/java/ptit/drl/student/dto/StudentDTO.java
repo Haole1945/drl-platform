@@ -22,6 +22,7 @@ public class StudentDTO {
     private String facultyCode;
     private String facultyName;
     private String position; // Chức vụ: CLASS_MONITOR, VICE_MONITOR, etc.
+    private String email; // Email trường
     
     // Constructors
     public StudentDTO() {}
@@ -137,6 +138,14 @@ public class StudentDTO {
     
     public void setPosition(String position) {
         this.position = position;
+    }
+    
+    public String getEmail() {
+        return email;
+    }
+    
+    public void setEmail(String email) {
+        this.email = email;
     }
 }
 

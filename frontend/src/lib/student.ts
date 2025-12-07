@@ -20,6 +20,7 @@ export interface Student {
   majorCode?: string;
   facultyName?: string;
   facultyCode?: string;
+  email?: string;
   createdAt?: string;
   updatedAt?: string;
 }
