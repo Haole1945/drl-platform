@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Users, Search, Loader2, Eye } from 'lucide-react';
+import { Users, Search, Loader2, Eye, Plus } from 'lucide-react';
 import { getStudents, getStudentByCode, getFaculties, getMajors, getClasses, type Student, type Faculty, type Major, type Class } from '@/lib/student';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -230,11 +230,21 @@ export default function StudentsPage() {
     <ProtectedRoute allowedRoles={['ADMIN', 'INSTRUCTOR', 'FACULTY_INSTRUCTOR', 'ADVISOR', 'CTSV_STAFF', 'CLASS_MONITOR']}>
       <DashboardLayout>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold">Quản lý Sinh viên</h1>
-            <p className="text-muted-foreground">
-              Xem và quản lý thông tin sinh viên
-            </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Quản lý Sinh viên</h1>
+              <p className="text-muted-foreground">
+                Xem và quản lý thông tin sinh viên
+              </p>
+            </div>
+            {hasAnyRole(user, ['ADMIN', 'FACULTY_INSTRUCTOR']) && (
+              <Link href="/admin/students/new">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Tạo mới
+                </Button>
+              </Link>
+            )}
           </div>
 
           <Card>

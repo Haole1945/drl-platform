@@ -143,17 +143,19 @@ public class AuthService {
         String studentCodeFromEmail = email.substring(0, email.indexOf('@'));
         String studentCode = studentCodeFromEmail.toUpperCase(); // Normalize to uppercase for lookup
         
-        // Validate student exists and get student data
+        // Try to get student data from student-service (optional - not required)
+        // If student doesn't exist, we'll still create the user account
         StudentServiceClient.StudentDTO studentData = null;
         try {
             StudentServiceClient.StudentResponse studentResponse = 
                 studentServiceClient.getStudentByCode(studentCode);
-            if (studentResponse == null || !studentResponse.isSuccess() || studentResponse.getData() == null) {
-                throw new ResourceNotFoundException("Student", "code", studentCode);
+            if (studentResponse != null && studentResponse.isSuccess() && studentResponse.getData() != null) {
+                studentData = studentResponse.getData();
             }
-            studentData = studentResponse.getData();
+            // If student not found, studentData remains null - we'll still create the user
         } catch (Exception e) {
-            throw new ResourceNotFoundException("Student", "code", studentCode);
+            // Log but don't throw - we'll create user anyway if email format is valid
+            // studentData remains null
         }
         
         // Normalize username to lowercase (e.g., n21dccn001)

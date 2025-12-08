@@ -197,10 +197,10 @@ public class StudentController {
     
     /**
      * POST /students - Create new student
-     * Requires ADMIN or INSTRUCTOR role
+     * Requires ADMIN, INSTRUCTOR, or FACULTY_INSTRUCTOR role
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('INSTRUCTOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INSTRUCTOR') or hasRole('FACULTY_INSTRUCTOR')")
     public ResponseEntity<ApiResponse<StudentDTO>> createStudent(
             @Valid @RequestBody CreateStudentRequest request) {
         StudentDTO student = studentService.createStudent(request);

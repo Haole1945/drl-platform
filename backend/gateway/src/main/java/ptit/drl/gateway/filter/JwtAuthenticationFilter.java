@@ -87,6 +87,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                path.startsWith("/api/auth/login") ||
                path.startsWith("/api/auth/refresh") ||
                path.startsWith("/api/auth/logout") ||
+               path.startsWith("/api/auth/request-password") ||  // Public endpoint for password requests
                path.startsWith("/api/auth/me") ||  // /auth/me requires token but should pass through gateway
                path.startsWith("/api/students/hello") ||  // Test endpoint
                path.startsWith("/api/students/db-test") ||  // Test endpoint
@@ -121,11 +122,21 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         ServerHttpResponse response = exchange.getResponse();
         response.setStatusCode(status);
         response.getHeaders().add("Content-Type", "application/json");
-        // Remove any CORS headers that might have been added by downstream services
-        response.getHeaders().remove("Access-Control-Allow-Origin");
-        response.getHeaders().remove("Access-Control-Allow-Credentials");
-        response.getHeaders().remove("Access-Control-Allow-Methods");
-        response.getHeaders().remove("Access-Control-Allow-Headers");
+        
+        // Add CORS headers for error responses to allow frontend to read the error
+        ServerHttpRequest request = exchange.getRequest();
+        String origin = request.getHeaders().getFirst("Origin");
+        if (origin != null && (
+            origin.equals("http://localhost:3000") || 
+            origin.equals("http://localhost:3001") ||
+            origin.equals("http://127.0.0.1:3000") ||
+            origin.equals("http://127.0.0.1:3001")
+        )) {
+            response.getHeaders().add("Access-Control-Allow-Origin", origin);
+            response.getHeaders().add("Access-Control-Allow-Credentials", "true");
+            response.getHeaders().add("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD");
+            response.getHeaders().add("Access-Control-Allow-Headers", "*");
+        }
         
         String errorBody = String.format("{\"success\":false,\"message\":\"%s\",\"timestamp\":[]}", message);
         return response.writeWith(Mono.just(response.bufferFactory().wrap(errorBody.getBytes())));
