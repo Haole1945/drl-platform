@@ -18,6 +18,8 @@ backend/**/.env
 backend/**/.env.local
 frontend/.env.local
 frontend/.env
+infra/.env
+infra/.env.local
 
 # OS
 .DS_Store

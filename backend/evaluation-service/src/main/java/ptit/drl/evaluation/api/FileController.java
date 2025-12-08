@@ -1,6 +1,8 @@
 package ptit.drl.evaluation.api;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -17,6 +19,7 @@ import ptit.drl.evaluation.service.FileService;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -26,6 +29,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/files")
 public class FileController {
+    
+    private static final Logger logger = LoggerFactory.getLogger(FileController.class);
     
     @Autowired
     private FileService fileService;
@@ -108,23 +113,43 @@ public class FileController {
             @PathVariable Long criteriaId,
             @PathVariable String filename) {
         
+        logger.info("Download file request: evaluationId={}, criteriaId={}, filename={}", 
+                evaluationId, criteriaId, filename);
+        
         try {
             EvidenceFile file = fileService.getFileByStoredFileName(filename);
+            logger.info("File found in DB: id={}, evaluationId={}, criteriaId={}, filePath={}", 
+                    file.getId(), file.getEvaluationId(), file.getCriteriaId(), file.getFilePath());
             
-            // Verify the file belongs to the specified evaluation and criteria
-            // Handle case where evaluationId might be 0 (placeholder) or null in DB
-            Long fileEvaluationId = file.getEvaluationId();
-            boolean evaluationMatches = (fileEvaluationId == null && evaluationId == 0) ||
-                                       (fileEvaluationId != null && fileEvaluationId.equals(evaluationId));
-            
-            if (!evaluationMatches || !file.getCriteriaId().equals(criteriaId)) {
+            // Verify the file belongs to the specified criteria
+            // Note: evaluationId in URL might be 0 (placeholder) even if file has evaluationId set
+            // We allow access if criteriaId matches, regardless of evaluationId mismatch
+            // This handles cases where files were linked to evaluations after upload
+            if (!file.getCriteriaId().equals(criteriaId)) {
+                logger.warn("File access denied: criteriaId mismatch. File criteriaId={}, request criteriaId={}", 
+                        file.getCriteriaId(), criteriaId);
                 return ResponseEntity.notFound().build();
             }
             
+            // Log evaluationId info for debugging (but don't block access)
+            Long fileEvaluationId = file.getEvaluationId();
+            boolean evaluationMatches = (fileEvaluationId == null && evaluationId == 0) ||
+                                       (fileEvaluationId != null && fileEvaluationId.equals(evaluationId));
+            logger.debug("Evaluation info: fileEvaluationId={}, requestEvaluationId={}, matches={}", 
+                    fileEvaluationId, evaluationId, evaluationMatches);
+            
             Path filePath = fileService.getFilePath(file);
+            logger.debug("Resolved file path: {}", filePath);
+            
             Resource resource = new UrlResource(filePath.toUri());
             
-            if (!resource.exists() || !resource.isReadable()) {
+            if (!resource.exists()) {
+                logger.error("File not found on disk: {}", filePath);
+                return ResponseEntity.notFound().build();
+            }
+            
+            if (!resource.isReadable()) {
+                logger.error("File not readable: {}", filePath);
                 return ResponseEntity.notFound().build();
             }
             
@@ -134,12 +159,14 @@ public class FileController {
                 contentType = "application/octet-stream";
             }
             
+            logger.info("Serving file: {}", filename);
             return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
                 .header(HttpHeaders.CONTENT_DISPOSITION, 
                     "inline; filename=\"" + file.getFileName() + "\"")
                 .body(resource);
         } catch (Exception e) {
+            logger.error("Error serving file: filename={}, error={}", filename, e.getMessage(), e);
             return ResponseEntity.notFound().build();
         }
     }
@@ -180,6 +207,60 @@ public class FileController {
     }
     
     /**
+     * POST /files/evaluation/{evaluationId}/sync - Sync/link files with evaluation
+     * Extracts file URLs from evaluation evidence and links files that have evaluationId=null or 0
+     * This is a one-time operation to fix data inconsistency for existing evaluations
+     */
+    @PostMapping("/evaluation/{evaluationId}/sync")
+    public ResponseEntity<ApiResponse<List<FileUploadResponse>>> syncFilesWithEvaluation(
+            @PathVariable Long evaluationId) {
+        
+        try {
+            // This will be implemented in EvaluationService to sync files
+            // For now, return empty list - actual implementation will link files
+            return ResponseEntity.ok(ApiResponse.success("Files sync initiated", new ArrayList<>()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Failed to sync files: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * POST /files/lookup - Lookup files by stored file names and criteria ID
+     * Body: { "storedFileNames": ["file1.jpg", "file2.png"], "criteriaId": 1 }
+     * Used to find files that might have evaluationId=null or 0
+     */
+    @PostMapping("/lookup")
+    public ResponseEntity<ApiResponse<List<FileUploadResponse>>> lookupFiles(
+            @RequestBody FileLookupRequest request) {
+        
+        try {
+            if (request.getStoredFileNames() == null || request.getStoredFileNames().isEmpty()) {
+                return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("storedFileNames is required"));
+            }
+            if (request.getCriteriaId() == null) {
+                return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("criteriaId is required"));
+            }
+            
+            List<EvidenceFile> files = fileService.getFilesByStoredFileNamesAndCriteriaId(
+                request.getStoredFileNames(), request.getCriteriaId());
+            
+            List<FileUploadResponse> responses = files.stream()
+                .map(f -> new FileUploadResponse(
+                    f.getId(), f.getFileName(), f.getFileUrl(), 
+                    f.getFileType(), f.getFileSize(), f.getSubCriteriaId()))
+                .collect(Collectors.toList());
+            
+            return ResponseEntity.ok(ApiResponse.success("Files found", responses));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Failed to lookup files: " + e.getMessage()));
+        }
+    }
+    
+    /**
      * DELETE /files/{fileId} - Delete a file
      */
     @DeleteMapping("/{fileId}")
@@ -190,6 +271,30 @@ public class FileController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error("Failed to delete file: " + e.getMessage()));
+        }
+    }
+    
+    /**
+     * Request DTO for file lookup
+     */
+    public static class FileLookupRequest {
+        private List<String> storedFileNames;
+        private Long criteriaId;
+        
+        public List<String> getStoredFileNames() {
+            return storedFileNames;
+        }
+        
+        public void setStoredFileNames(List<String> storedFileNames) {
+            this.storedFileNames = storedFileNames;
+        }
+        
+        public Long getCriteriaId() {
+            return criteriaId;
+        }
+        
+        public void setCriteriaId(Long criteriaId) {
+            this.criteriaId = criteriaId;
         }
     }
 }

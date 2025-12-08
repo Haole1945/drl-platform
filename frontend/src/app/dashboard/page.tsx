@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ClipboardList, Award, CheckSquare, Users, Settings, FileText, Trash2, Loader2 } from 'lucide-react';
-import { hasAnyRole, getPrimaryRoleDisplayName, canCreateEvaluation, canApproveClassLevel, canApproveFacultyLevel, canApproveCtsvLevel } from '@/lib/role-utils';
+import { hasAnyRole, getPrimaryRoleDisplayName, canCreateEvaluation, canApproveClassLevel, canApproveAdvisorLevel, canApproveFacultyLevel } from '@/lib/role-utils';
 import { getStudentEvaluations, getPendingEvaluations, deleteEvaluation } from '@/lib/evaluation';
 import type { Evaluation } from '@/types/evaluation';
 import { Badge } from '@/components/ui/badge';
@@ -61,7 +61,7 @@ export default function DashboardPage() {
         }
 
         // Load pending count if can approve
-        if (canApproveClassLevel(user) || canApproveFacultyLevel(user) || canApproveCtsvLevel(user)) {
+        if (canApproveClassLevel(user) || canApproveAdvisorLevel(user) || canApproveFacultyLevel(user)) {
           const pendingResponse = await getPendingEvaluations({ size: 1 });
           if (pendingResponse.success && pendingResponse.data) {
             setPendingCount(pendingResponse.data.totalElements || 0);
@@ -80,7 +80,7 @@ export default function DashboardPage() {
   }, [user]);
 
   const canCreate = user && canCreateEvaluation(user);
-  const canApprove = user && (canApproveClassLevel(user) || canApproveFacultyLevel(user) || canApproveCtsvLevel(user));
+  const canApprove = user && (canApproveClassLevel(user) || canApproveAdvisorLevel(user) || canApproveFacultyLevel(user));
   const isAdmin = user && hasAnyRole(user, ['ADMIN']);
 
   return (

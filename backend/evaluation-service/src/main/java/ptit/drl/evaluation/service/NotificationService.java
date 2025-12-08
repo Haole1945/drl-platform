@@ -1,5 +1,7 @@
 package ptit.drl.evaluation.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
 @Service
 @Transactional
 public class NotificationService {
+    
+    private static final Logger logger = LoggerFactory.getLogger(NotificationService.class);
     
     @Autowired
     private NotificationRepository notificationRepository;
@@ -110,7 +114,7 @@ public class NotificationService {
      */
     public void notifyPeriodCreated(Long periodId, String periodName, String semester, LocalDate startDate, LocalDate endDate) {
         if (authServiceClient == null) {
-            // If Feign client is not available, skip notification creation
+            logger.warn("AuthServiceClient is not available, skipping notification creation for period: {}", periodId);
             return;
         }
         
@@ -119,6 +123,7 @@ public class NotificationService {
             AuthServiceClient.UserIdsResponse response = authServiceClient.getAllUserIds();
             if (response != null && response.isSuccess() && response.getData() != null) {
                 List<Long> userIds = response.getData();
+                logger.info("Creating PERIOD_CREATED notifications for {} users, period: {}", userIds.size(), periodId);
                 
                 String title = "Đợt đánh giá điểm rèn luyện mới: " + periodName;
                 String message = String.format(
@@ -129,6 +134,7 @@ public class NotificationService {
                     endDate.toString()
                 );
                 
+                int createdCount = 0;
                 // Create notification for each user
                 for (Long userId : userIds) {
                     // Check if notification already exists for this specific user to avoid duplicates
@@ -148,11 +154,15 @@ public class NotificationService {
                             "EVALUATION_PERIOD",
                             periodId
                         );
+                        createdCount++;
                     }
                 }
+                logger.info("Created {} PERIOD_CREATED notifications for period: {}", createdCount, periodId);
+            } else {
+                logger.warn("Failed to get user IDs from auth-service for period notification: {}", periodId);
             }
         } catch (Exception e) {
-            // Failed to create notifications for period - continue
+            logger.error("Failed to create notifications for period: {}, error: {}", periodId, e.getMessage(), e);
         }
     }
     
@@ -201,7 +211,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            // Failed to create reminder notifications - continue
+            logger.error("Failed to create reminder notifications for period: {}, error: {}", periodId, e.getMessage(), e);
         }
     }
     
@@ -217,13 +227,16 @@ public class NotificationService {
     
     /**
      * Notify reviewers when evaluation needs review
-     * Sends to: CLASS_MONITOR, UNION_REPRESENTATIVE, ADVISOR (for class level)
+     * Sends to: CLASS_MONITOR, ADVISOR (for class level)
      *           FACULTY_INSTRUCTOR (for faculty level)
-     *           CTSV_STAFF (for CTSV level)
+     *           (FACULTY is now final level)
      */
     public void notifyEvaluationNeedsReview(Long evaluationId, String studentName, String studentCode, 
                                            String classCode, String facultyCode, String currentStatus) {
-        if (authServiceClient == null) return;
+        if (authServiceClient == null) {
+            logger.warn("AuthServiceClient is not available, skipping notification for evaluation: {}", evaluationId);
+            return;
+        }
         
         try {
             List<Long> reviewerIds = new java.util.ArrayList<>();
@@ -231,25 +244,16 @@ public class NotificationService {
             // Determine which reviewers to notify based on current status
             if ("SUBMITTED".equals(currentStatus)) {
                 // Class level reviewers
-                // Get CLASS_MONITOR, UNION_REPRESENTATIVE, ADVISOR for this class
+                // Get CLASS_MONITOR, ADVISOR for this class
                 try {
                     AuthServiceClient.UserIdsResponse monitorResponse = 
                         authServiceClient.getUserIdsByRoleAndClassCode("CLASS_MONITOR", classCode);
                     if (monitorResponse != null && monitorResponse.isSuccess() && monitorResponse.getData() != null) {
                         reviewerIds.addAll(monitorResponse.getData());
+                        logger.debug("Found {} CLASS_MONITOR reviewers for class: {}", monitorResponse.getData().size(), classCode);
                     }
                 } catch (Exception e) {
-                    // Failed to get CLASS_MONITOR IDs - continue
-                }
-                
-                try {
-                    AuthServiceClient.UserIdsResponse unionResponse = 
-                        authServiceClient.getUserIdsByRoleAndClassCode("UNION_REPRESENTATIVE", classCode);
-                    if (unionResponse != null && unionResponse.isSuccess() && unionResponse.getData() != null) {
-                        reviewerIds.addAll(unionResponse.getData());
-                    }
-                } catch (Exception e) {
-                    // Failed to get UNION_REPRESENTATIVE IDs - continue
+                    logger.warn("Failed to get CLASS_MONITOR IDs for class: {}, error: {}", classCode, e.getMessage());
                 }
                 
                 try {
@@ -257,36 +261,47 @@ public class NotificationService {
                         authServiceClient.getUserIdsByRoleAndClassCode("ADVISOR", classCode);
                     if (advisorResponse != null && advisorResponse.isSuccess() && advisorResponse.getData() != null) {
                         reviewerIds.addAll(advisorResponse.getData());
+                        logger.debug("Found {} ADVISOR reviewers for class: {}", advisorResponse.getData().size(), classCode);
                     }
                 } catch (Exception e) {
-                    // Failed to get ADVISOR IDs - continue
+                    logger.warn("Failed to get ADVISOR IDs for class: {}, error: {}", classCode, e.getMessage());
                 }
             } else if ("CLASS_APPROVED".equals(currentStatus)) {
+                // Advisor level reviewers
+                try {
+                    AuthServiceClient.UserIdsResponse advisorResponse = 
+                        authServiceClient.getUserIdsByRoleAndClassCode("ADVISOR", classCode);
+                    if (advisorResponse != null && advisorResponse.isSuccess() && advisorResponse.getData() != null) {
+                        reviewerIds.addAll(advisorResponse.getData());
+                        logger.debug("Found {} ADVISOR reviewers for class: {}", advisorResponse.getData().size(), classCode);
+                    }
+                } catch (Exception e) {
+                    logger.warn("Failed to get ADVISOR IDs for class: {}, error: {}", classCode, e.getMessage());
+                }
+            } else if ("ADVISOR_APPROVED".equals(currentStatus)) {
                 // Faculty level reviewers
                 try {
                     AuthServiceClient.UserIdsResponse facultyResponse = 
                         authServiceClient.getUserIdsByRole("FACULTY_INSTRUCTOR");
                     if (facultyResponse != null && facultyResponse.isSuccess() && facultyResponse.getData() != null) {
                         reviewerIds.addAll(facultyResponse.getData());
+                        logger.debug("Found {} FACULTY_INSTRUCTOR reviewers", facultyResponse.getData().size());
                     }
                 } catch (Exception e) {
-                    // Failed to get FACULTY_INSTRUCTOR IDs - continue
-                }
-            } else if ("FACULTY_APPROVED".equals(currentStatus)) {
-                // CTSV level reviewers
-                try {
-                    AuthServiceClient.UserIdsResponse ctsvResponse = 
-                        authServiceClient.getUserIdsByRole("CTSV_STAFF");
-                    if (ctsvResponse != null && ctsvResponse.isSuccess() && ctsvResponse.getData() != null) {
-                        reviewerIds.addAll(ctsvResponse.getData());
-                    }
-                } catch (Exception e) {
-                    // Failed to get CTSV_STAFF IDs - continue
+                    logger.warn("Failed to get FACULTY_INSTRUCTOR IDs, error: {}", e.getMessage());
                 }
             }
+            // Note: FACULTY_APPROVED is now final approval, no need to notify reviewers
             
             // Remove duplicates
             reviewerIds = reviewerIds.stream().distinct().collect(Collectors.toList());
+            
+            if (reviewerIds.isEmpty()) {
+                logger.warn("No reviewers found for evaluation: {}, status: {}, class: {}", evaluationId, currentStatus, classCode);
+                return;
+            }
+            
+            logger.info("Creating EVALUATION_NEEDS_REVIEW notifications for {} reviewers, evaluation: {}", reviewerIds.size(), evaluationId);
             
             String title = "Có đánh giá mới cần duyệt";
             String message = String.format(
@@ -294,6 +309,7 @@ public class NotificationService {
                 studentName, studentCode, classCode != null ? classCode : "N/A"
             );
             
+            int createdCount = 0;
             // Create notification for each reviewer
             for (Long reviewerId : reviewerIds) {
                 // Check if notification already exists
@@ -314,10 +330,12 @@ public class NotificationService {
                         "EVALUATION",
                         evaluationId
                     );
+                    createdCount++;
                 }
             }
+            logger.info("Created {} EVALUATION_NEEDS_REVIEW notifications for evaluation: {}", createdCount, evaluationId);
         } catch (Exception e) {
-            // Failed to create evaluation needs review notifications - continue
+            logger.error("Failed to create evaluation needs review notifications for evaluation: {}, error: {}", evaluationId, e.getMessage(), e);
         }
     }
     
@@ -364,19 +382,25 @@ public class NotificationService {
             List<Long> reviewerIds = new java.util.ArrayList<>();
             
             // Get reviewers for next level
-            if ("FACULTY".equals(nextLevel)) {
+            if ("ADVISOR".equals(nextLevel)) {
+                // Get advisor for the student's class
+                // Note: StudentServiceClient is not available, so we skip advisor lookup
+                // TODO: Implement advisor lookup when StudentServiceClient is available
+                // For now, advisors will need to be assigned manually or via other means
+                try {
+                    // Skip advisor lookup - StudentServiceClient not available
+                    // This is a known limitation that needs to be addressed
+                } catch (Exception e) {
+                    // Failed to get ADVISOR IDs - continue
+                }
+            } else if ("FACULTY".equals(nextLevel)) {
                 AuthServiceClient.UserIdsResponse response = 
                     authServiceClient.getUserIdsByRole("FACULTY_INSTRUCTOR");
                 if (response != null && response.isSuccess() && response.getData() != null) {
                     reviewerIds.addAll(response.getData());
                 }
-            } else if ("CTSV".equals(nextLevel)) {
-                AuthServiceClient.UserIdsResponse response = 
-                    authServiceClient.getUserIdsByRole("CTSV_STAFF");
-                if (response != null && response.isSuccess() && response.getData() != null) {
-                    reviewerIds.addAll(response.getData());
-                }
             }
+            // Note: FACULTY is now final level
             
             String title = "Có đánh giá cần xem xét";
             String message = String.format(
@@ -405,7 +429,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            // Failed to create escalation notifications - continue
+            logger.error("Failed to create escalation notifications for evaluation: {}, error: {}", evaluationId, e.getMessage(), e);
         }
     }
     
@@ -451,7 +475,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            // Failed to create rubric activation notifications - continue
+            logger.error("Failed to create rubric activation notifications for rubric: {}, error: {}", rubricId, e.getMessage(), e);
         }
     }
     
@@ -495,7 +519,7 @@ public class NotificationService {
                 }
             }
         } catch (Exception e) {
-            // Failed to create rubric update notifications - continue
+            logger.error("Failed to create rubric update notifications for rubric: {}, error: {}", rubricId, e.getMessage(), e);
         }
     }
     

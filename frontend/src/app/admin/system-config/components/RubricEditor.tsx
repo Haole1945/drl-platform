@@ -74,7 +74,7 @@ export const RubricEditor: React.FC<RubricEditorProps> = ({
                 <Label htmlFor="rubric-name">Tên Rubric *</Label>
                 <Input
                   id="rubric-name"
-                  value={rubricFormData.name}
+                  value={rubricFormData.name || ''}
                   onChange={(e) => setRubricFormData({ ...rubricFormData, name: e.target.value })}
                   placeholder="Ví dụ: Rubric Đánh giá Điểm Rèn Luyện 2024-2025"
                 />
@@ -83,7 +83,7 @@ export const RubricEditor: React.FC<RubricEditorProps> = ({
                 <Label htmlFor="rubric-description">Mô tả</Label>
                 <Textarea
                   id="rubric-description"
-                  value={rubricFormData.description}
+                  value={rubricFormData.description || ''}
                   onChange={(e) => setRubricFormData({ ...rubricFormData, description: e.target.value })}
                   placeholder="Mô tả chi tiết về rubric này..."
                   className="min-h-[100px]"
@@ -95,7 +95,7 @@ export const RubricEditor: React.FC<RubricEditorProps> = ({
                   <Input
                     id="rubric-max-score"
                     type="number"
-                    value={rubricFormData.maxScore}
+                    value={rubricFormData.maxScore ?? 100}
                     onChange={(e) => setRubricFormData({ ...rubricFormData, maxScore: parseInt(e.target.value) || 100 })}
                     placeholder="100"
                   />
@@ -104,7 +104,7 @@ export const RubricEditor: React.FC<RubricEditorProps> = ({
                   <Label htmlFor="rubric-academic-year">Năm học *</Label>
                   <Input
                     id="rubric-academic-year"
-                    value={rubricFormData.academicYear}
+                    value={rubricFormData.academicYear || ''}
                     onChange={(e) => setRubricFormData({ ...rubricFormData, academicYear: e.target.value })}
                     placeholder="2024-2025"
                   />

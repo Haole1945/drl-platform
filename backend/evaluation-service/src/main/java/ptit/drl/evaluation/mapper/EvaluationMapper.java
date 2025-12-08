@@ -91,19 +91,40 @@ public class EvaluationMapper {
         }
         
         EvaluationDetailDTO dto = new EvaluationDetailDTO();
-        dto.setScore(detail.getScore());
+        dto.setScore(detail.getScore()); // Điểm tự chấm
+        dto.setClassMonitorScore(detail.getClassMonitorScore()); // Điểm lớp trưởng
+        dto.setAdvisorScore(detail.getAdvisorScore()); // Điểm cố vấn
         // Map comment to both evidence and note (for backward compatibility)
         String comment = detail.getComment();
         
-        // Remove "Evidence: " prefix if present when returning to frontend
-        // Frontend expects format without prefix
-        String evidenceForResponse = comment;
-        if (evidenceForResponse != null && evidenceForResponse.startsWith("Evidence: ")) {
-            evidenceForResponse = evidenceForResponse.substring("Evidence: ".length());
+        // Check if comment is JSON (contains scores)
+        String evidenceForResponse = null;
+        if (comment != null && comment.trim().startsWith("{")) {
+            // It's JSON, try to extract evidence field
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                java.util.Map<String, Object> commentData = mapper.readValue(comment, java.util.Map.class);
+                if (commentData.containsKey("evidence")) {
+                    evidenceForResponse = (String) commentData.get("evidence");
+                } else {
+                    // No evidence in JSON, set empty
+                    evidenceForResponse = "";
+                }
+            } catch (Exception e) {
+                // Failed to parse JSON, treat as evidence string
+                evidenceForResponse = comment;
+            }
+        } else {
+            // Not JSON, treat as evidence string
+            // Remove "Evidence: " prefix if present
+            evidenceForResponse = comment;
+            if (evidenceForResponse != null && evidenceForResponse.startsWith("Evidence: ")) {
+                evidenceForResponse = evidenceForResponse.substring("Evidence: ".length());
+            }
         }
         
         dto.setEvidence(evidenceForResponse);
-        dto.setNote(comment); // Keep note as original comment
+        dto.setNote(comment); // Keep note as original comment (JSON or evidence string)
         
         // Handle criteria (may be lazy loaded)
         try {

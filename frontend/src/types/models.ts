@@ -57,7 +57,7 @@ export interface Evaluation {
   };
   semester: string;
   academicYear: string;
-  status: 'DRAFT' | 'SUBMITTED' | 'CLASS_APPROVED' | 'FACULTY_APPROVED' | 'CTSV_APPROVED' | 'REJECTED';
+  status: 'DRAFT' | 'SUBMITTED' | 'CLASS_APPROVED' | 'ADVISOR_APPROVED' | 'FACULTY_APPROVED' | 'REJECTED';
   totalScore: number;
   details: EvaluationDetail[];
   rejectionReason?: string;

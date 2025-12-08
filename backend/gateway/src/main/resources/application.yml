@@ -64,6 +64,14 @@ spring:
             - Path=/api/notifications/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
+        
+        # AI Validation Service Route
+        - id: ai-validation-service
+          uri: lb://ai-validation-service
+          predicates:
+            - Path=/api/validations/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
 
 # JWT Configuration (must match auth-service)
 jwt:

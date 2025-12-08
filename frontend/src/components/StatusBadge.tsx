@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 
 interface StatusBadgeProps {
-  status: 'DRAFT' | 'SUBMITTED' | 'CLASS_APPROVED' | 'FACULTY_APPROVED' | 'CTSV_APPROVED' | 'REJECTED';
+  status: 'DRAFT' | 'SUBMITTED' | 'CLASS_APPROVED' | 'ADVISOR_APPROVED' | 'FACULTY_APPROVED' | 'REJECTED';
 }
 
 const statusConfig = {
@@ -19,12 +19,12 @@ const statusConfig = {
     label: 'Lớp đã duyệt',
     variant: 'default' as const,
   },
-  FACULTY_APPROVED: {
-    label: 'Khoa đã duyệt',
+  ADVISOR_APPROVED: {
+    label: 'Cố vấn đã duyệt',
     variant: 'default' as const,
   },
-  CTSV_APPROVED: {
-    label: 'CTSV đã duyệt',
+  FACULTY_APPROVED: {
+    label: 'Đã duyệt hoàn tất',
     variant: 'default' as const,
   },
   REJECTED: {

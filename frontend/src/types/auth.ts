@@ -5,7 +5,6 @@
 export type Role = 
   | 'STUDENT' 
   | 'CLASS_MONITOR' 
-  | 'UNION_REPRESENTATIVE' 
   | 'ADVISOR' 
   | 'FACULTY_INSTRUCTOR' 
   | 'CTSV_STAFF' 

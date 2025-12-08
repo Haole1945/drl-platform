@@ -28,18 +28,30 @@ export function NotificationBell() {
   const loadNotifications = async () => {
     setLoading(true);
     try {
+      console.log('[NotificationBell] Loading notifications...');
       const [notificationsResponse, countResponse] = await Promise.all([
         getUnreadNotifications(),
         getUnreadCount(),
       ]);
 
+      console.log('[NotificationBell] Notifications response:', notificationsResponse);
+      console.log('[NotificationBell] Count response:', countResponse);
+
       if (notificationsResponse.success && notificationsResponse.data) {
+        console.log('[NotificationBell] Found', notificationsResponse.data.length, 'notifications');
         setNotifications(notificationsResponse.data);
+      } else {
+        console.warn('[NotificationBell] Failed to get notifications:', notificationsResponse);
       }
       if (countResponse.success && countResponse.data !== undefined) {
+        console.log('[NotificationBell] Unread count:', countResponse.data);
         setUnreadCount(countResponse.data);
+      } else {
+        console.warn('[NotificationBell] Failed to get count:', countResponse);
       }
     } catch (error: any) {
+      // Log error for debugging
+      console.error('[NotificationBell] Failed to load notifications:', error);
       // Silently handle errors - notifications are not critical
     } finally {
       setLoading(false);

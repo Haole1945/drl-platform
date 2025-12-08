@@ -24,7 +24,13 @@ public class EvaluationDetail {
     private Long criteriaId;
     
     @Column(name = "score", nullable = false)
-    private Double score; // Điểm chấm cho tiêu chí này
+    private Double score; // Điểm tự chấm của học sinh cho tiêu chí này
+    
+    @Column(name = "class_monitor_score")
+    private Double classMonitorScore; // Điểm lớp trưởng chấm
+    
+    @Column(name = "advisor_score")
+    private Double advisorScore; // Điểm cố vấn chấm (điểm cuối cùng)
     
     @Column(name = "comment", columnDefinition = "TEXT")
     private String comment; // Nhận xét của người chấm
@@ -77,6 +83,22 @@ public class EvaluationDetail {
     
     public void setScore(Double score) {
         this.score = score;
+    }
+    
+    public Double getClassMonitorScore() {
+        return classMonitorScore;
+    }
+    
+    public void setClassMonitorScore(Double classMonitorScore) {
+        this.classMonitorScore = classMonitorScore;
+    }
+    
+    public Double getAdvisorScore() {
+        return advisorScore;
+    }
+    
+    public void setAdvisorScore(Double advisorScore) {
+        this.advisorScore = advisorScore;
     }
     
     public String getComment() {

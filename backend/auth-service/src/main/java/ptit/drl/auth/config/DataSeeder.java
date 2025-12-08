@@ -105,19 +105,7 @@ public class DataSeeder implements CommandLineRunner {
                 roleClassMonitor.addPermission(permCriteriaView);
                 roleRepository.save(roleClassMonitor);
 
-                // UNION_REPRESENTATIVE - Đại diện đoàn (có thể duyệt cấp lớp)
-                Role roleUnionRep = new Role("UNION_REPRESENTATIVE", "Đại diện đoàn");
-                roleUnionRep.addPermission(permStudentViewOwn);
-                roleUnionRep.addPermission(permEvaluationCreate);
-                roleUnionRep.addPermission(permEvaluationViewOwn);
-                roleUnionRep.addPermission(permEvaluationUpdateOwn);
-                roleUnionRep.addPermission(permEvaluationSubmit);
-                roleUnionRep.addPermission(permEvaluationViewAll);
-                roleUnionRep.addPermission(permEvaluationApprove);
-                roleUnionRep.addPermission(permEvaluationReject);
-                roleUnionRep.addPermission(permRubricView);
-                roleUnionRep.addPermission(permCriteriaView);
-                roleRepository.save(roleUnionRep);
+                // UNION_REPRESENTATIVE role removed - no longer needed
 
                 // ADVISOR - Cố vấn học tập (duyệt cấp lớp)
                 Role roleAdvisor = new Role("ADVISOR", "Cố vấn học tập");
@@ -139,34 +127,6 @@ public class DataSeeder implements CommandLineRunner {
                 roleFacultyInstructor.addPermission(permCriteriaView);
                 roleRepository.save(roleFacultyInstructor);
 
-                // CTSV_STAFF - Nhân viên CTSV (duyệt cấp CTSV)
-                Role roleCtsvStaff = new Role("CTSV_STAFF", "Nhân viên CTSV");
-                roleCtsvStaff.addPermission(permStudentViewAll);
-                roleCtsvStaff.addPermission(permEvaluationViewAll);
-                roleCtsvStaff.addPermission(permEvaluationApprove);
-                roleCtsvStaff.addPermission(permEvaluationReject);
-                roleCtsvStaff.addPermission(permRubricView);
-                roleCtsvStaff.addPermission(permCriteriaView);
-                roleRepository.save(roleCtsvStaff);
-
-                // INSTITUTE_COUNCIL - Hội đồng Học viện (chốt điểm)
-                Role roleInstituteCouncil = new Role("INSTITUTE_COUNCIL", "Hội đồng Học viện");
-                roleInstituteCouncil.addPermission(permStudentViewAll);
-                roleInstituteCouncil.addPermission(permEvaluationViewAll);
-                roleInstituteCouncil.addPermission(permEvaluationApprove); // Chốt điểm
-                roleInstituteCouncil.addPermission(permRubricView);
-                roleInstituteCouncil.addPermission(permCriteriaView);
-                roleRepository.save(roleInstituteCouncil);
-
-                // INSTRUCTOR - Giữ lại cho tương thích
-                Role roleInstructor = new Role("INSTRUCTOR", "Giảng viên/Cố vấn học tập");
-                roleInstructor.addPermission(permStudentViewAll);
-                roleInstructor.addPermission(permEvaluationViewAll);
-                roleInstructor.addPermission(permEvaluationApprove);
-                roleInstructor.addPermission(permEvaluationReject);
-                roleInstructor.addPermission(permRubricView);
-                roleInstructor.addPermission(permCriteriaView);
-                roleRepository.save(roleInstructor);
 
                 // ADMIN - Quản trị viên
                 Role roleAdmin = new Role("ADMIN", "Quản trị viên");
@@ -206,13 +166,7 @@ public class DataSeeder implements CommandLineRunner {
                 classMonitorUser.addRole(roleClassMonitor); // Thêm quyền lớp trưởng
                 userRepository.save(classMonitorUser);
 
-                // UNION_REPRESENTATIVE - Đại diện đoàn (N21DCCN050)
-                User unionRepUser = new User("unionrep", "n21dccn050@student.ptithcm.edu.vn",
-                                passwordEncoder.encode("Union123!"), "Lê Văn Cường");
-                unionRepUser.setStudentCode("N21DCCN050");
-                unionRepUser.addRole(roleStudent);
-                unionRepUser.addRole(roleUnionRep);
-                userRepository.save(unionRepUser);
+                // UNION_REPRESENTATIVE user removed - no longer needed
 
                 // ADVISOR - Cố vấn học tập
                 User advisorUser = new User("advisor", "advisor@ptit.edu.vn",
@@ -226,22 +180,5 @@ public class DataSeeder implements CommandLineRunner {
                 facultyInstructorUser.addRole(roleFacultyInstructor);
                 userRepository.save(facultyInstructorUser);
 
-                // CTSV_STAFF - Nhân viên CTSV
-                User ctsvStaffUser = new User("ctsv", "ctsv@ptit.edu.vn",
-                                passwordEncoder.encode("Ctsv123!"), "Nhân viên CTSV");
-                ctsvStaffUser.addRole(roleCtsvStaff);
-                userRepository.save(ctsvStaffUser);
-
-                // INSTITUTE_COUNCIL - Hội đồng Học viện
-                User councilUser = new User("council", "council@ptit.edu.vn",
-                                passwordEncoder.encode("Council123!"), "Hội đồng Học viện");
-                councilUser.addRole(roleInstituteCouncil);
-                userRepository.save(councilUser);
-
-                // INSTRUCTOR - Giữ lại cho tương thích
-                User instructorUser = new User("instructor", "instructor@ptit.edu.vn",
-                                passwordEncoder.encode("Instructor123!"), "Giảng viên Mẫu");
-                instructorUser.addRole(roleInstructor);
-                userRepository.save(instructorUser);
         }
 }

@@ -97,8 +97,8 @@ export function EvaluationHistory({ history, resubmissionCount }: EvaluationHist
     
     const levelMap: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
       'CLASS': { label: 'Lớp', variant: 'outline' },
-      'FACULTY': { label: 'Khoa', variant: 'secondary' },
-      'CTSV': { label: 'CTSV', variant: 'default' },
+      'ADVISOR': { label: 'Cố vấn', variant: 'secondary' },
+      'FACULTY': { label: 'Khoa', variant: 'default' },
     };
 
     const config = levelMap[level] || { label: level, variant: 'outline' as const };

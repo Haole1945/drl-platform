@@ -6,8 +6,8 @@ export type EvaluationStatus =
   | 'DRAFT'
   | 'SUBMITTED'
   | 'CLASS_APPROVED'
+  | 'ADVISOR_APPROVED'
   | 'FACULTY_APPROVED'
-  | 'CTSV_APPROVED'
   | 'REJECTED';
 
 export interface SubCriteria {
@@ -28,6 +28,9 @@ export interface CriteriaWithSubCriteria {
   rubricId: number;
   subCriteria: SubCriteria[]; // Parsed sub-criteria
   totalScore: number; // Auto-calculated sum of sub-criteria scores
+  classMonitorScore?: number; // Điểm lớp trưởng chấm
+  advisorScore?: number; // Điểm cố vấn chấm (điểm cuối cùng)
+  finalScore?: number; // Score to display (advisor > class monitor > student)
 }
 
 export interface EvaluationHistory {
@@ -48,8 +51,10 @@ export interface EvaluationDetail {
   criteriaId: number;
   criteriaName?: string;
   criteriaDescription?: string;
-  selfScore?: number; // Frontend uses this
-  score?: number; // Backend uses this
+  selfScore?: number; // Frontend uses this - điểm tự chấm của học sinh
+  score?: number; // Backend uses this - điểm tự chấm của học sinh
+  classMonitorScore?: number; // Điểm lớp trưởng chấm
+  advisorScore?: number; // Điểm cố vấn chấm (điểm cuối cùng)
   maxScore?: number; // Backend uses maxScore
   maxPoints?: number; // Frontend uses this
   evidence?: string;
@@ -103,6 +108,7 @@ export interface UpdateEvaluationRequest {
 
 export interface ApprovalRequest {
   comment?: string;
+  scores?: Record<number, number>; // Map of criteriaId -> score (for CLASS_MONITOR and ADVISOR)
 }
 
 export interface RejectionRequest {

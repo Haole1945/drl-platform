@@ -14,12 +14,16 @@ export async function getScoringsuggestion(
   token: string
 ): Promise<AiScoringResponse> {
   // Call Next.js API route to bypass CORS and backend issues
+  // Pass token so API route can fetch file metadata from backend
   const response = await fetch('/api/ai-scoring', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(request),
+    body: JSON.stringify({
+      ...request,
+      token, // Pass token to API route for backend calls
+    }),
   });
 
   if (!response.ok) {

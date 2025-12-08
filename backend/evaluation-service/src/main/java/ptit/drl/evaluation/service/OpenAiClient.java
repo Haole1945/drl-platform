@@ -62,8 +62,9 @@ public class OpenAiClient {
         }
         
         if (apiKey == null || apiKey.isEmpty()) {
-            logger.error("OpenAI API key is not configured! Please set OPENAI_API_KEY environment variable or configure in application.yml");
-            throw new IllegalStateException("OpenAI API key is required but not configured");
+            logger.warn("OpenAI API key is not configured. AI scoring features will be disabled. " +
+                    "To enable AI features, set OPENAI_API_KEY environment variable or configure in application.yml");
+            return; // Don't throw exception - allow service to start without AI features
         }
         
         // Log partial key for debugging (first 10 chars + last 4 chars for security)

@@ -158,8 +158,8 @@ export default function MyEvaluationsPage() {
                       <SelectItem value="DRAFT">Nháp</SelectItem>
                       <SelectItem value="SUBMITTED">Đã nộp</SelectItem>
                       <SelectItem value="CLASS_APPROVED">Lớp đã duyệt</SelectItem>
+                      <SelectItem value="ADVISOR_APPROVED">Cố vấn đã duyệt</SelectItem>
                       <SelectItem value="FACULTY_APPROVED">Khoa đã duyệt</SelectItem>
-                      <SelectItem value="CTSV_APPROVED">CTSV đã duyệt</SelectItem>
                       <SelectItem value="REJECTED">Bị từ chối</SelectItem>
                     </SelectContent>
                   </Select>

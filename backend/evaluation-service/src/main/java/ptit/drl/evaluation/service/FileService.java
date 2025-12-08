@@ -149,6 +149,14 @@ public class FileService {
     }
     
     /**
+     * Get files by stored file names and criteria ID
+     * Used to lookup files that might have evaluationId=null or 0
+     */
+    public List<EvidenceFile> getFilesByStoredFileNamesAndCriteriaId(List<String> storedFileNames, Long criteriaId) {
+        return evidenceFileRepository.findByStoredFileNamesAndCriteriaId(storedFileNames, criteriaId);
+    }
+    
+    /**
      * Get files for a sub-criteria
      */
     public List<EvidenceFile> getFilesBySubCriteria(Long evaluationId, Long criteriaId, String subCriteriaId) {
@@ -170,6 +178,46 @@ public class FileService {
         
         // Delete database record
         evidenceFileRepository.delete(file);
+    }
+    
+    /**
+     * Link files with evaluation by extracting file URLs from evidence string
+     * This ensures files uploaded before evaluation creation are properly linked
+     */
+    public void linkFilesWithEvaluation(Long evaluationId, Long criteriaId, String evidence) {
+        if (evidence == null || evidence.isEmpty()) {
+            return;
+        }
+        
+        // Extract stored file names from evidence URLs
+        // URL format: /files/evidence/{evalId}/{criteriaId}/{storedFileName}
+        java.util.regex.Pattern urlPattern = java.util.regex.Pattern.compile("/files/evidence/[^/]+/[^/]+/([^\\s,]+)");
+        java.util.regex.Matcher matcher = urlPattern.matcher(evidence);
+        
+        java.util.Set<String> storedFileNames = new java.util.HashSet<>();
+        while (matcher.find()) {
+            storedFileNames.add(matcher.group(1));
+        }
+        
+        if (storedFileNames.isEmpty()) {
+            return;
+        }
+        
+        // Find files by stored file names and criteria ID
+        List<EvidenceFile> files = evidenceFileRepository.findByStoredFileNamesAndCriteriaId(
+            new java.util.ArrayList<>(storedFileNames), criteriaId);
+        
+        // Link files with evaluation (update evaluationId if null or 0)
+        for (EvidenceFile file : files) {
+            if (file.getEvaluationId() == null || file.getEvaluationId() == 0) {
+                file.setEvaluationId(evaluationId);
+                // Update file URL to reflect new evaluation ID
+                String newFileUrl = String.format("/files/evidence/%d/%d/%s", 
+                    evaluationId, file.getCriteriaId(), file.getStoredFileName());
+                file.setFileUrl(newFileUrl);
+                evidenceFileRepository.save(file);
+            }
+        }
     }
     
     /**

@@ -41,13 +41,13 @@ export const SubCriteriaRenderer: React.FC<SubCriteriaRendererProps> = ({
             <div className="grid gap-3 md:grid-cols-12">
               <div className="md:col-span-2 flex flex-col">
                 <Label className="text-xs text-muted-foreground">Mã</Label>
-                <Input value={sub.id} readOnly className="h-9 text-center bg-muted" />
+                <Input value={sub.id || ''} readOnly className="h-9 text-center bg-muted" />
               </div>
               <div className="md:col-span-6 flex flex-col">
                 <Label className="text-xs text-muted-foreground">Tên tiêu chí phụ *</Label>
                 <Input
                   placeholder="Ví dụ: 1.1. Ý thức học tập"
-                  value={sub.name}
+                  value={sub.name || ''}
                   onChange={(e) => handleUpdateSubCriteria(actualIndex, actualSubIndex, 'name', e.target.value)}
                   className="h-9"
                 />
@@ -56,7 +56,7 @@ export const SubCriteriaRenderer: React.FC<SubCriteriaRendererProps> = ({
                 <Label className="text-xs text-muted-foreground">Điểm *</Label>
                 <Input
                   type="number"
-                  value={sub.points}
+                  value={sub.points ?? 0}
                   onChange={(e) => handleUpdateSubCriteria(actualIndex, actualSubIndex, 'points', parseFloat(e.target.value) || 0)}
                   className="h-9 text-center"
                 />
@@ -76,7 +76,7 @@ export const SubCriteriaRenderer: React.FC<SubCriteriaRendererProps> = ({
               <Label className="text-xs text-muted-foreground">Mô tả tiêu chí phụ</Label>
               <Textarea
                 placeholder="Mô tả chi tiết, điều kiện, hướng dẫn chấm điểm..."
-                value={sub.description}
+                value={sub.description || ''}
                 onChange={(e) => handleUpdateSubCriteria(actualIndex, actualSubIndex, 'description', e.target.value)}
                 className="min-h-[70px] text-sm"
               />

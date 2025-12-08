@@ -77,4 +77,10 @@ export async function markAllNotificationsAsRead(): Promise<ApiResponse<void>> {
   return apiClient.put<void>('/notifications/read-all');
 }
 
+/**
+ * Create test notifications (for testing purposes)
+ */
+export async function createTestNotifications(): Promise<ApiResponse<any>> {
+  return apiClient.post<any>('/notifications/test');
+}
 

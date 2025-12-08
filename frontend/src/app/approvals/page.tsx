@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Eye, CheckSquare } from 'lucide-react';
 import { getPendingEvaluations } from '@/lib/evaluation';
-import { canApproveClassLevel, canApproveFacultyLevel, canApproveCtsvLevel } from '@/lib/role-utils';
+import { canApproveClassLevel, canApproveAdvisorLevel, canApproveFacultyLevel } from '@/lib/role-utils';
 import type { Evaluation } from '@/types/evaluation';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Badge } from '@/components/ui/badge';
@@ -26,14 +26,15 @@ export default function ApprovalsPage() {
     if (!user) return;
 
     const loadPendingEvaluations = async () => {
+      setLoading(true);
       try {
         let level: string | undefined;
         if (canApproveClassLevel(user)) {
           level = activeTab === 'class' ? 'CLASS' : undefined;
+        } else if (canApproveAdvisorLevel(user)) {
+          level = activeTab === 'advisor' ? 'ADVISOR' : undefined;
         } else if (canApproveFacultyLevel(user)) {
           level = activeTab === 'faculty' ? 'FACULTY' : undefined;
-        } else if (canApproveCtsvLevel(user)) {
-          level = activeTab === 'ctsv' ? 'CTSV' : undefined;
         }
 
         const response = await getPendingEvaluations({ level, size: 100 });
@@ -49,11 +50,24 @@ export default function ApprovalsPage() {
     };
 
     loadPendingEvaluations();
+    
+    // Refresh when page becomes visible (user returns from detail page)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        loadPendingEvaluations();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [user, activeTab]);
 
   if (loading) {
     return (
-      <ProtectedRoute allowedRoles={['CLASS_MONITOR', 'UNION_REPRESENTATIVE', 'ADVISOR', 'FACULTY_INSTRUCTOR', 'CTSV_STAFF', 'INSTITUTE_COUNCIL', 'ADMIN']}>
+      <ProtectedRoute allowedRoles={['CLASS_MONITOR', 'ADVISOR', 'FACULTY_INSTRUCTOR', 'CTSV_STAFF', 'INSTITUTE_COUNCIL', 'ADMIN']}>
         <DashboardLayout>
           <div className="flex items-center justify-center h-64">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -63,7 +77,7 @@ export default function ApprovalsPage() {
     );
   }
 
-  const canApprove = user && (canApproveClassLevel(user) || canApproveFacultyLevel(user) || canApproveCtsvLevel(user));
+  const canApprove = user && (canApproveClassLevel(user) || canApproveAdvisorLevel(user) || canApproveFacultyLevel(user));
 
   if (!canApprove) {
     return (
@@ -80,8 +94,8 @@ export default function ApprovalsPage() {
   }
 
   const classLevel = evaluations.filter(e => e.status === 'SUBMITTED');
-  const facultyLevel = evaluations.filter(e => e.status === 'CLASS_APPROVED');
-  const ctsvLevel = evaluations.filter(e => e.status === 'FACULTY_APPROVED');
+  const advisorLevel = evaluations.filter(e => e.status === 'CLASS_APPROVED');
+  const facultyLevel = evaluations.filter(e => e.status === 'ADVISOR_APPROVED');
 
   return (
     <ProtectedRoute>
@@ -100,11 +114,11 @@ export default function ApprovalsPage() {
               {canApproveClassLevel(user) && (
                 <TabsTrigger value="class">Cấp Lớp ({classLevel.length})</TabsTrigger>
               )}
+              {canApproveAdvisorLevel(user) && (
+                <TabsTrigger value="advisor">Cố vấn ({advisorLevel.length})</TabsTrigger>
+              )}
               {canApproveFacultyLevel(user) && (
                 <TabsTrigger value="faculty">Cấp Khoa ({facultyLevel.length})</TabsTrigger>
-              )}
-              {canApproveCtsvLevel(user) && (
-                <TabsTrigger value="ctsv">Cấp CTSV ({ctsvLevel.length})</TabsTrigger>
               )}
             </TabsList>
 
@@ -139,6 +153,22 @@ export default function ApprovalsPage() {
               </TabsContent>
             )}
 
+            {canApproveAdvisorLevel(user) && (
+              <TabsContent value="advisor" className="space-y-4">
+                {advisorLevel.length === 0 ? (
+                  <Card>
+                    <CardContent className="flex flex-col items-center justify-center py-12">
+                      <p className="text-muted-foreground">Không có đánh giá nào chờ duyệt cấp cố vấn</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  advisorLevel.map((evaluation) => (
+                    <EvaluationCard key={evaluation.id} evaluation={evaluation} />
+                  ))
+                )}
+              </TabsContent>
+            )}
+
             {canApproveFacultyLevel(user) && (
               <TabsContent value="faculty" className="space-y-4">
                 {facultyLevel.length === 0 ? (
@@ -155,21 +185,6 @@ export default function ApprovalsPage() {
               </TabsContent>
             )}
 
-            {canApproveCtsvLevel(user) && (
-              <TabsContent value="ctsv" className="space-y-4">
-                {ctsvLevel.length === 0 ? (
-                  <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-12">
-                      <p className="text-muted-foreground">Không có đánh giá nào chờ duyệt cấp CTSV</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  ctsvLevel.map((evaluation) => (
-                    <EvaluationCard key={evaluation.id} evaluation={evaluation} />
-                  ))
-                )}
-              </TabsContent>
-            )}
           </Tabs>
         </div>
       </DashboardLayout>

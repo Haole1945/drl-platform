@@ -49,12 +49,11 @@ export function hasAllRoles(user: User | null, roles: Role[]): boolean {
 
 /**
  * Check if user can approve evaluations at class level
+ * (CLASS_MONITOR must approve)
  */
 export function canApproveClassLevel(user: User | null): boolean {
   return hasAnyRole(user, [
     'CLASS_MONITOR',
-    'UNION_REPRESENTATIVE',
-    'ADVISOR',
     'ADMIN'
   ]);
 }
@@ -70,11 +69,11 @@ export function canApproveFacultyLevel(user: User | null): boolean {
 }
 
 /**
- * Check if user can approve evaluations at CTSV level
+ * Check if user can approve evaluations at advisor level
  */
-export function canApproveCtsvLevel(user: User | null): boolean {
+export function canApproveAdvisorLevel(user: User | null): boolean {
   return hasAnyRole(user, [
-    'CTSV_STAFF',
+    'ADVISOR',
     'ADMIN'
   ]);
 }
@@ -91,14 +90,13 @@ export function canFinalizeEvaluation(user: User | null): boolean {
 
 /**
  * Check if user can create evaluations
- * Students, class monitors, union representatives, and admins can create evaluations
+ * Students, class monitors, and admins can create evaluations
  * Admin can create evaluations on behalf of students
  */
 export function canCreateEvaluation(user: User | null): boolean {
   return hasAnyRole(user, [
     'STUDENT',
     'CLASS_MONITOR',
-    'UNION_REPRESENTATIVE',
     'ADMIN'
   ]);
 }
@@ -119,7 +117,6 @@ export function getPrimaryRoleDisplayName(user: User | null): string {
     'CTSV_STAFF',
     'FACULTY_INSTRUCTOR',
     'ADVISOR',
-    'UNION_REPRESENTATIVE',
     'CLASS_MONITOR',
     'INSTRUCTOR',
     'STUDENT'
@@ -141,7 +138,6 @@ export function getRoleDisplayName(role: Role): string {
   const roleNames: Record<Role, string> = {
     'STUDENT': 'Sinh viên',
     'CLASS_MONITOR': 'Lớp trưởng',
-    'UNION_REPRESENTATIVE': 'Đại diện đoàn',
     'ADVISOR': 'Cố vấn học tập',
     'FACULTY_INSTRUCTOR': 'Giáo viên khoa',
     'CTSV_STAFF': 'Nhân viên CTSV',

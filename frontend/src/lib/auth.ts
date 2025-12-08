@@ -29,6 +29,10 @@ export async function login(
         localStorage.setItem('refreshToken', response.data.refreshToken);
       }
     }
+    // Store user ID for X-User-Id header
+    if (response.data?.user?.id && typeof window !== 'undefined') {
+      localStorage.setItem('userId', String(response.data.user.id));
+    }
   }
   
   return response;
@@ -79,6 +83,10 @@ export async function refreshToken(
         localStorage.setItem('refreshToken', response.data.refreshToken);
       }
     }
+    // Store user ID for X-User-Id header
+    if (response.data?.user?.id && typeof window !== 'undefined') {
+      localStorage.setItem('userId', String(response.data.user.id));
+    }
   }
   
   return response;
@@ -97,6 +105,7 @@ export async function logout(): Promise<void> {
     removeAuthToken();
     if (typeof window !== 'undefined') {
       localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userId');
     }
   }
 }

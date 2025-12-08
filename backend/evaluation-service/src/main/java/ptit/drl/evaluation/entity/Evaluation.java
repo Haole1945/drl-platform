@@ -62,7 +62,7 @@ public class Evaluation extends BaseEntity {
     private Integer resubmissionCount = 0; // Số lần nộp lại sau khi bị reject
     
     @Column(name = "last_rejection_level", length = 20)
-    private String lastRejectionLevel; // Level that last rejected: CLASS, FACULTY, CTSV
+    private String lastRejectionLevel; // Level that last rejected: CLASS, ADVISOR, FACULTY
     
     @Column(name = "created_by")
     private Long createdBy; // User ID who created this evaluation (null if student, set if admin)

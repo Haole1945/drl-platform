@@ -56,7 +56,7 @@ export const CriteriaItem: React.FC<CriteriaItemProps> = ({
             <div className="flex-1">
               <Textarea
                 placeholder="Tên/Mô tả ngắn của tiêu chí *"
-                value={criterion.name}
+                value={criterion.name || ''}
                 onChange={(e) => handleUpdateCriteria(actualIndex, 'name', e.target.value)}
                 className="min-h-[72px] text-base font-semibold resize-none"
               />
@@ -112,7 +112,7 @@ export const CriteriaItem: React.FC<CriteriaItemProps> = ({
             <Label className="text-xs text-muted-foreground block text-right">Điểm tổng</Label>
             <Input
               type="number"
-              value={criterion.maxPoints}
+              value={criterion.maxPoints ?? 0}
               onChange={(e) => handleUpdateCriteria(actualIndex, 'maxPoints', parseFloat(e.target.value) || 0)}
               className="h-12 text-center bg-primary/10 text-primary font-semibold tracking-wide"
             />

@@ -74,9 +74,11 @@ export async function submitEvaluation(id: number): Promise<ApiResponse<Evaluati
  */
 export async function approveEvaluation(
   id: number,
-  comment?: string
+  comment?: string,
+  scores?: Record<number, number>,
+  subCriteriaScores?: Record<string, number> // "criterionId_subCriteriaId" -> score
 ): Promise<ApiResponse<Evaluation>> {
-  return apiClient.post<Evaluation>(`/evaluations/${id}/approve`, { comment });
+  return apiClient.post<Evaluation>(`/evaluations/${id}/approve`, { comment, scores, subCriteriaScores });
 }
 
 /**

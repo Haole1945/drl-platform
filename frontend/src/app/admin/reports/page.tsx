@@ -30,9 +30,8 @@ interface EvaluationStats {
     DRAFT: number;
     SUBMITTED: number;
     CLASS_APPROVED: number;
+    ADVISOR_APPROVED: number;
     FACULTY_APPROVED: number;
-    CTSV_APPROVED: number;
-    INSTITUTE_APPROVED: number;
     REJECTED: number;
   };
   bySemester: Record<string, number>;
@@ -49,9 +48,8 @@ const STATUS_COLORS: Record<string, string> = {
   DRAFT: '#94a3b8',
   SUBMITTED: '#3b82f6',
   CLASS_APPROVED: '#10b981',
+  ADVISOR_APPROVED: '#16a34a',
   FACULTY_APPROVED: '#22c55e',
-  CTSV_APPROVED: '#16a34a',
-  INSTITUTE_APPROVED: '#15803d',
   REJECTED: '#ef4444',
 };
 
@@ -59,9 +57,8 @@ const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Nháp',
   SUBMITTED: 'Đã nộp',
   CLASS_APPROVED: 'Duyệt lớp',
+  ADVISOR_APPROVED: 'Duyệt cố vấn',
   FACULTY_APPROVED: 'Duyệt khoa',
-  CTSV_APPROVED: 'Duyệt CTSV',
-  INSTITUTE_APPROVED: 'Duyệt Học viện',
   REJECTED: 'Từ chối',
 };
 
@@ -74,9 +71,8 @@ export default function ReportsPage() {
       DRAFT: 0,
       SUBMITTED: 0,
       CLASS_APPROVED: 0,
+      ADVISOR_APPROVED: 0,
       FACULTY_APPROVED: 0,
-      CTSV_APPROVED: 0,
-      INSTITUTE_APPROVED: 0,
       REJECTED: 0,
     },
     bySemester: {},
@@ -146,7 +142,6 @@ export default function ReportsPage() {
           SUBMITTED: 0,
           CLASS_APPROVED: 0,
           FACULTY_APPROVED: 0,
-          CTSV_APPROVED: 0,
           INSTITUTE_APPROVED: 0,
           REJECTED: 0,
         },
@@ -393,9 +388,8 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {evaluationStats.byStatus.INSTITUTE_APPROVED +
-                        evaluationStats.byStatus.CTSV_APPROVED +
-                        evaluationStats.byStatus.FACULTY_APPROVED +
+                      {evaluationStats.byStatus.FACULTY_APPROVED +
+                        evaluationStats.byStatus.ADVISOR_APPROVED +
                         evaluationStats.byStatus.CLASS_APPROVED}
                     </div>
                     <p className="text-xs text-muted-foreground">

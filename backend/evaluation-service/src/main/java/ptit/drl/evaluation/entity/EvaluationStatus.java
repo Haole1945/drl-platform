@@ -10,24 +10,26 @@ public enum EvaluationStatus {
     DRAFT,
     
     /**
-     * Submitted and waiting for class advisor review
+     * Submitted and waiting for CLASS_MONITOR to approve
      */
     SUBMITTED,
     
     /**
-     * Approved by class advisor
+     * Approved by CLASS_MONITOR
+     * Waiting for ADVISOR to approve
      */
     CLASS_APPROVED,
     
     /**
-     * Approved by faculty
+     * Approved by ADVISOR (Cố vấn học tập)
+     * Waiting for FACULTY_INSTRUCTOR to approve
      */
-    FACULTY_APPROVED,
+    ADVISOR_APPROVED,
     
     /**
-     * Final approval by CTSV (complete)
+     * Approved by FACULTY_INSTRUCTOR (final approval - complete)
      */
-    CTSV_APPROVED,
+    FACULTY_APPROVED,
     
     /**
      * Rejected at any level - can be re-submitted
@@ -53,8 +55,8 @@ public enum EvaluationStatus {
      */
     public boolean canApprove() {
         return this == SUBMITTED || 
-               this == CLASS_APPROVED || 
-               this == FACULTY_APPROVED;
+               this == CLASS_APPROVED ||
+               this == ADVISOR_APPROVED;
     }
     
     /**
@@ -62,8 +64,8 @@ public enum EvaluationStatus {
      */
     public boolean canReject() {
         return this == SUBMITTED || 
-               this == CLASS_APPROVED || 
-               this == FACULTY_APPROVED;
+               this == CLASS_APPROVED ||
+               this == ADVISOR_APPROVED;
     }
     
     /**
@@ -77,7 +79,7 @@ public enum EvaluationStatus {
      * Check if evaluation is in final state
      */
     public boolean isFinal() {
-        return this == CTSV_APPROVED;
+        return this == FACULTY_APPROVED;
     }
     
     /**
@@ -88,9 +90,9 @@ public enum EvaluationStatus {
             case SUBMITTED:
                 return CLASS_APPROVED;
             case CLASS_APPROVED:
+                return ADVISOR_APPROVED;
+            case ADVISOR_APPROVED:
                 return FACULTY_APPROVED;
-            case FACULTY_APPROVED:
-                return CTSV_APPROVED;
             default:
                 throw new IllegalStateException("Cannot approve evaluation in " + this + " status");
         }
@@ -104,9 +106,9 @@ public enum EvaluationStatus {
             case SUBMITTED:
                 return "CLASS";
             case CLASS_APPROVED:
+                return "ADVISOR";
+            case ADVISOR_APPROVED:
                 return "FACULTY";
-            case FACULTY_APPROVED:
-                return "CTSV";
             default:
                 return "NONE";
         }

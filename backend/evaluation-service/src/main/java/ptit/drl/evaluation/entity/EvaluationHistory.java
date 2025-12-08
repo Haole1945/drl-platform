@@ -30,7 +30,7 @@ public class EvaluationHistory {
     private String toStatus;
     
     @Column(name = "level", length = 20)
-    private String level; // CLASS, FACULTY, CTSV
+    private String level; // CLASS, ADVISOR, FACULTY
     
     @Column(name = "actor_id")
     private Long actorId; // Reference to user in auth-service (no FK)

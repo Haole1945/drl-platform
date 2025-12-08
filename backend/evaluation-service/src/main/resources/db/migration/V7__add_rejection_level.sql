@@ -9,4 +9,4 @@ CREATE INDEX idx_evaluations_rejection_level
 ON evaluations(last_rejection_level);
 
 -- Add comment for documentation
-COMMENT ON COLUMN evaluations.last_rejection_level IS 'Tracks which approval level (CLASS, FACULTY, CTSV) last rejected this evaluation. Used for smart resubmit.';
+COMMENT ON COLUMN evaluations.last_rejection_level IS 'Tracks which approval level (CLASS, ADVISOR, FACULTY) last rejected this evaluation. Used for smart resubmit.';

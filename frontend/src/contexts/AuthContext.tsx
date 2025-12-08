@@ -40,9 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const response = await getCurrentUser();
         if (response.success && response.data) {
           setUser(response.data);
+          // Store user ID for X-User-Id header
+          if (typeof window !== 'undefined' && response.data.id) {
+            localStorage.setItem('userId', String(response.data.id));
+          }
         } else {
           // Token invalid, remove it
           removeAuthToken();
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('userId');
+          }
         }
       } catch (error) {
         // API client handles retries automatically
@@ -72,6 +79,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await apiLogout();
     setUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('userId');
+    }
   }, []);
 
   /**

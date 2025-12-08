@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Sparkles, RefreshCw } from 'lucide-react';
-import { AiScoringResponse } from '@/types/ai-scoring';
+import { Loader2, Sparkles, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { AiScoringResponse, SubCriteriaInfo } from '@/types/ai-scoring';
 import { getScoringsuggestion } from '@/lib/api/ai-scoring';
 
 interface AiScoringSuggestionCompactProps {
@@ -13,6 +13,7 @@ interface AiScoringSuggestionCompactProps {
   evidenceFileIds: number[];
   currentScore?: number;
   token: string;
+  subCriteria?: SubCriteriaInfo[]; // Thông tin sub-criteria để AI phân tích riêng
 }
 
 export function AiScoringSuggestionCompact({
@@ -21,6 +22,7 @@ export function AiScoringSuggestionCompact({
   evidenceFileIds,
   currentScore = 0,
   token,
+  subCriteria,
 }: AiScoringSuggestionCompactProps) {
   const [loading, setLoading] = useState(false);
   const [suggestion, setSuggestion] = useState<AiScoringResponse | null>(null);
@@ -38,7 +40,7 @@ export function AiScoringSuggestionCompact({
 
     try {
       const response = await getScoringsuggestion(
-        { criteriaId, evidenceFileIds, maxScore },
+        { criteriaId, evidenceFileIds, maxScore, subCriteria },
         token
       );
       setSuggestion(response);
@@ -88,37 +90,32 @@ export function AiScoringSuggestionCompact({
         </div>
       )}
 
-      {/* Kết quả */}
+      {/* Kết quả - CHỈ hiển thị điểm từng sub-criteria có file */}
       {suggestion && (
         <div className="space-y-2">
-          {/* Điểm */}
-          <div className="flex items-center justify-between bg-white rounded p-2">
-            <div className="text-center flex-1">
-              <div className="text-xs text-gray-600">Điểm sinh viên tự chấm</div>
-              <div className="font-semibold text-gray-600">{currentScore}<span className="text-gray-600 text-xs">/{maxScore}</span></div>
+          {/* Kết quả theo sub-criteria (CHỈ các sub-criteria có bằng chứng) */}
+          {suggestion.subCriteriaScores && suggestion.subCriteriaScores.length > 0 ? (
+            <div className="bg-white rounded p-2 space-y-1">
+              {suggestion.subCriteriaScores.map((subScore) => (
+                <div key={subScore.subCriteriaId} className="flex items-center justify-between py-1">
+                  <span className="text-xs font-medium text-gray-700">
+                    {subScore.subCriteriaId}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" title="Evidence verified" />
+                    <span className="text-xs font-semibold text-purple-700">
+                      {subScore.suggestedScore}/{subScore.maxScore}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="text-center flex-1 bg-purple-50 rounded py-1">
-              <div className="text-xs text-purple-600">Điểm AI gợi ý</div>
-              <div className="font-semibold text-purple-700">{suggestion.suggestedScore}<span className="text-purple-400 text-xs">/{maxScore}</span></div>
+          ) : (
+            // Fallback nếu không có sub-criteria scores (old format)
+            <div className="bg-white rounded p-2 text-xs text-center text-gray-500">
+              Không có dữ liệu
             </div>
-            <div className="text-center flex-1">
-              <div className="text-xs text-gray-500">Chênh lệch</div>
-              <div className={`font-semibold ${scoreDifference > 0 ? 'text-green-600' : scoreDifference < 0 ? 'text-red-600' : 'text-gray-600'}`}>
-                {scoreDifference > 0 ? '+' : ''}{scoreDifference.toFixed(1)}
-              </div>
-            </div>
-          </div>
-
-          {/* Độ tin cậy + Lý do */}
-          <div className="bg-white rounded p-2 text-xs">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-gray-500">Độ tin cậy</span>
-              <Badge variant="secondary" className="text-xs h-5">
-                {suggestion.confidence}%
-              </Badge>
-            </div>
-            <p className="text-gray-600 line-clamp-2">{suggestion.reason}</p>
-          </div>
+          )}
 
           {/* Nút làm mới */}
           <div className="flex justify-center">

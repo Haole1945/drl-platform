@@ -101,6 +101,10 @@ class ApiClient {
     // This ensures token is sent even if it was just refreshed
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      
+      // Note: Gateway automatically adds X-User-Id header from JWT token
+      // So we don't need to manually add it here
+      // But we can still try to add it as fallback if needed
     } else {
       // If no token and this is not a public endpoint, we should not make the request
       // Public endpoints are handled by the backend, but most endpoints require auth

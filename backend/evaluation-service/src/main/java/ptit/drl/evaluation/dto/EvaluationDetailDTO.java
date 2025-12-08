@@ -7,7 +7,9 @@ public class EvaluationDetailDTO {
     private Long criteriaId;
     private String criteriaName;
     private String criteriaDescription;
-    private Double score;
+    private Double score; // Điểm tự chấm của học sinh
+    private Double classMonitorScore; // Điểm lớp trưởng chấm
+    private Double advisorScore; // Điểm cố vấn chấm (điểm cuối cùng)
     private Double maxScore;
     private String evidence;
     private String note;
@@ -57,6 +59,22 @@ public class EvaluationDetailDTO {
     
     public void setScore(Double score) {
         this.score = score;
+    }
+    
+    public Double getClassMonitorScore() {
+        return classMonitorScore;
+    }
+    
+    public void setClassMonitorScore(Double classMonitorScore) {
+        this.classMonitorScore = classMonitorScore;
+    }
+    
+    public Double getAdvisorScore() {
+        return advisorScore;
+    }
+    
+    public void setAdvisorScore(Double advisorScore) {
+        this.advisorScore = advisorScore;
     }
     
     public Double getMaxScore() {

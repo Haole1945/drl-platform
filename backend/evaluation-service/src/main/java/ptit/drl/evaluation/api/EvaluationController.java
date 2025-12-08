@@ -15,7 +15,11 @@ import ptit.drl.evaluation.config.SecurityConfig;
 import ptit.drl.evaluation.dto.*;
 import ptit.drl.evaluation.service.EvaluationService;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for Evaluation workflow
@@ -67,12 +71,26 @@ public class EvaluationController {
     }
     
     /**
+     * POST /evaluations/{id}/sync-files - Sync/link files with evaluation
+     * Extracts file URLs from evaluation evidence and links files that have evaluationId=null or 0
+     * This is a one-time operation to fix data inconsistency for existing evaluations
+     */
+    @PostMapping("/{id}/sync-files")
+    public ResponseEntity<ApiResponse<EvaluationDTO>> syncFilesWithEvaluation(
+            @PathVariable Long id) {
+        evaluationService.syncFilesWithEvaluation(id);
+        EvaluationDTO evaluation = evaluationService.getEvaluationById(id);
+        return ResponseEntity.ok(
+            ApiResponse.success("Files synced successfully", evaluation));
+    }
+    
+    /**
      * POST /evaluations - Create new evaluation (DRAFT)
-     * Students, class monitors, union representatives, and admins can create evaluations
+     * Students, class monitors, and admins can create evaluations
      * Admin can create evaluations on behalf of students
      */
     @PostMapping
-    @PreAuthorize("hasRole('STUDENT') or hasRole('CLASS_MONITOR') or hasRole('UNION_REPRESENTATIVE') or hasRole('ADMIN')")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('CLASS_MONITOR') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<EvaluationDTO>> createEvaluation(
             @Valid @RequestBody CreateEvaluationRequest request) {
         
@@ -130,17 +148,55 @@ public class EvaluationController {
             @PathVariable Long id,
             @RequestBody(required = false) ApprovalRequest request,
             @RequestHeader(value = "X-User-Id", required = false) Long userId,
-            @RequestHeader(value = "X-User-Name", required = false) String userName) {
+            @RequestHeader(value = "X-User-Name", required = false) String userName,
+            @RequestHeader(value = "X-Roles", required = false) String rolesHeader) {
         
         String comment = request != null ? request.getComment() : null;
         
-        // TODO: Get current user from JWT token (from auth-service)
-        // For now, use headers or null
+        // Get current user from headers (set by Gateway from JWT)
         Long approverId = userId;
         String approverName = userName;
         
+        // Extract roles from header (comma-separated)
+        List<String> approverRoles = new ArrayList<>();
+        if (rolesHeader != null && !rolesHeader.trim().isEmpty()) {
+            approverRoles = Arrays.stream(rolesHeader.split(","))
+                    .map(String::trim)
+                    .filter(role -> !role.isEmpty())
+                    .collect(Collectors.toList());
+        }
+        
+        // Extract scores from request (if provided)
+        Map<Long, Double> scores = request != null ? request.getScores() : null;
+        Map<String, Double> subCriteriaScores = request != null ? request.getSubCriteriaScores() : null;
+        
+        // Debug logging
+        System.out.println("[DEBUG] Approval request received:");
+        System.out.println("  Evaluation ID: " + id);
+        System.out.println("  Comment: " + comment);
+        System.out.println("  Approver ID: " + approverId);
+        System.out.println("  Approver Name: " + approverName);
+        System.out.println("  Approver Roles: " + approverRoles);
+        System.out.println("  Scores: " + (scores != null ? scores.toString() : "null"));
+        System.out.println("  SubCriteriaScores: " + (subCriteriaScores != null ? subCriteriaScores.toString() : "null"));
+        System.out.println("  SubCriteriaScores count: " + (subCriteriaScores != null ? subCriteriaScores.size() : 0));
+        if (scores != null && !scores.isEmpty()) {
+            System.out.println("  Scores details:");
+            scores.forEach((criteriaId, score) -> {
+                System.out.println("    Criteria " + criteriaId + ": " + score);
+            });
+        }
+        if (subCriteriaScores != null && !subCriteriaScores.isEmpty()) {
+            System.out.println("  SubCriteriaScores details:");
+            subCriteriaScores.forEach((key, score) -> {
+                System.out.println("    " + key + ": " + score);
+            });
+        } else {
+            System.out.println("  WARNING: SubCriteriaScores is null or empty!");
+        }
+        
         EvaluationDTO evaluation = evaluationService.approveEvaluation(
-            id, comment, approverId, approverName);
+            id, comment, approverId, approverName, approverRoles, scores, subCriteriaScores);
         return ResponseEntity.ok(
             ApiResponse.success("Evaluation approved successfully", evaluation));
     }
@@ -183,7 +239,7 @@ public class EvaluationController {
     
     /**
      * GET /evaluations/pending - Get pending evaluations for approval
-     * Query params: level (CLASS, FACULTY, CTSV), page, size
+     * Query params: level (CLASS, FACULTY), page, size
      */
     @GetMapping("/pending")
     public ResponseEntity<ApiResponse<Page<EvaluationDTO>>> getPendingEvaluations(

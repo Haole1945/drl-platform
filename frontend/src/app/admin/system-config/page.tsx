@@ -96,11 +96,24 @@ export default function SystemConfigPage() {
               .filter(sub => !sub.isDeleted)
               .reduce((sum, sub) => sum + (sub.points || 0), 0);
             
+            // Get maxPoints from DB (backend may return maxScore, so check both)
+            const dbMaxPoints = (c as any).maxScore ?? c.maxPoints ?? 0;
+            
+            // Determine maxPoints:
+            // - If has sub-criteria with points > 0, use sum of sub-criteria points
+            // - If has sub-criteria but all points are 0, preserve original maxPoints from DB
+            // - If no sub-criteria, use maxPoints from DB
+            const hasSubCriteria = subCriteriaData.length > 0;
+            const hasSubCriteriaWithPoints = subCriteriaData.some(sub => !sub.isDeleted && (sub.points || 0) > 0);
+            const finalMaxPoints = hasSubCriteriaWithPoints 
+              ? subPointsTotal 
+              : dbMaxPoints; // Always use DB value if no sub-criteria or all points are 0
+            
             return {
               id: c.id,
               name: c.name,
               description: c.description || '',
-              maxPoints: subCriteriaData.length > 0 ? subPointsTotal : c.maxPoints,
+              maxPoints: finalMaxPoints > 0 ? finalMaxPoints : dbMaxPoints, // Ensure we use DB value if calculated is 0 but DB has value
               orderIndex: c.orderIndex,
               subCriteria: subCriteriaData,
             };
@@ -208,10 +221,17 @@ export default function SystemConfigPage() {
         isNew: true,
       }
     ];
+    
+    // Preserve original maxPoints if this is the first sub-criteria and it has no points yet
+    const originalMaxPoints = updated[criteriaIndex].maxPoints;
+    const subPointsTotal = calculateSubPoints(updatedSubCriteria);
+    const hasSubCriteriaWithPoints = updatedSubCriteria.some(sub => !sub.isDeleted && (sub.points || 0) > 0);
+    
     updated[criteriaIndex] = {
       ...updated[criteriaIndex],
       subCriteria: updatedSubCriteria,
-      maxPoints: calculateSubPoints(updatedSubCriteria),
+      // Only update maxPoints if sub-criteria have points, otherwise preserve original
+      maxPoints: hasSubCriteriaWithPoints ? subPointsTotal : originalMaxPoints,
     };
     setCriteria(updated);
     setExpandedCriteria(prev => prev.includes(criteriaIndex) ? prev : [...prev, criteriaIndex]);
@@ -226,10 +246,16 @@ export default function SystemConfigPage() {
     const updated = [...criteria];
     const subCriteria = [...(updated[criteriaIndex].subCriteria || [])];
     subCriteria[subIndex] = { ...subCriteria[subIndex], [field]: value };
+    
+    // Calculate new maxPoints from sub-criteria
+    const subPointsTotal = calculateSubPoints(subCriteria);
+    const hasSubCriteria = subCriteria.filter(s => !s.isDeleted).length > 0;
+    
     updated[criteriaIndex] = { 
       ...updated[criteriaIndex], 
       subCriteria,
-      maxPoints: calculateSubPoints(subCriteria),
+      // If has sub-criteria, use calculated points; otherwise preserve original maxPoints
+      maxPoints: hasSubCriteria ? subPointsTotal : updated[criteriaIndex].maxPoints,
     };
     setCriteria(updated);
     setExpandedCriteria(prev => prev.includes(criteriaIndex) ? prev : [...prev, criteriaIndex]);
@@ -248,10 +274,16 @@ export default function SystemConfigPage() {
       subCriteria.splice(subIndex, 1);
     }
     
+    // Check if there are any active sub-criteria left
+    const activeSubCriteria = subCriteria.filter(s => !s.isDeleted);
+    const subPointsTotal = calculateSubPoints(subCriteria);
+    const originalMaxPoints = updated[criteriaIndex].maxPoints;
+    
     updated[criteriaIndex] = { 
       ...updated[criteriaIndex], 
       subCriteria,
-      maxPoints: calculateSubPoints(subCriteria),
+      // If no active sub-criteria left, preserve original maxPoints; otherwise use calculated
+      maxPoints: activeSubCriteria.length > 0 ? subPointsTotal : originalMaxPoints,
     };
     setCriteria(updated);
     setExpandedCriteria(prev => prev.includes(criteriaIndex) ? prev : [...prev, criteriaIndex]);
@@ -399,12 +431,22 @@ export default function SystemConfigPage() {
         // Format description with sub-criteria
         const formattedDescription = formatDescriptionWithSubCriteria(criterion);
         
+        // Determine maxPoints to save:
+        // - If has sub-criteria with points > 0, use sum of sub-criteria points
+        // - Otherwise, use the maxPoints value from the criterion (user input or DB value)
+        const activeSubCriteria = (criterion.subCriteria || []).filter(s => !s.isDeleted);
+        const hasSubCriteriaWithPoints = activeSubCriteria.some(sub => (sub.points || 0) > 0);
+        const subPointsTotal = calculateSubPoints(criterion.subCriteria);
+        const maxPointsToSave = hasSubCriteriaWithPoints 
+          ? subPointsTotal 
+          : (criterion.maxPoints || 0); // Use criterion.maxPoints (user input or DB value)
+        
         if (criterion.id) {
           // Update existing
           await updateCriteria(criterion.id, {
             name: criterion.name,
             description: formattedDescription,
-            maxPoints: criterion.maxPoints,
+            maxPoints: maxPointsToSave,
             orderIndex: criterion.orderIndex,
           });
         } else {
@@ -412,7 +454,7 @@ export default function SystemConfigPage() {
           await createCriteria({
             name: criterion.name,
             description: formattedDescription,
-            maxPoints: criterion.maxPoints,
+            maxPoints: maxPointsToSave,
             orderIndex: criterion.orderIndex,
             rubricId: rubricId,
           });

@@ -43,5 +43,14 @@ public interface EvidenceFileRepository extends JpaRepository<EvidenceFile, Long
      */
     @Query("SELECT f FROM EvidenceFile f WHERE f.storedFileName = :storedFileName")
     Optional<EvidenceFile> findByStoredFileName(@Param("storedFileName") String storedFileName);
+    
+    /**
+     * Find files by stored file names and criteria ID
+     * Used to lookup files that might have evaluationId=null or 0
+     */
+    @Query("SELECT f FROM EvidenceFile f WHERE f.storedFileName IN :storedFileNames AND f.criteriaId = :criteriaId")
+    List<EvidenceFile> findByStoredFileNamesAndCriteriaId(
+        @Param("storedFileNames") List<String> storedFileNames,
+        @Param("criteriaId") Long criteriaId);
 }
 

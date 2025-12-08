@@ -33,7 +33,7 @@ export const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     router.push('/login');
   };
 
-  const isInstructor = user && hasAnyRole(user, ['INSTRUCTOR', 'ADMIN', 'CLASS_MONITOR', 'UNION_REPRESENTATIVE', 'ADVISOR', 'FACULTY_INSTRUCTOR', 'CTSV_STAFF', 'INSTITUTE_COUNCIL']);
+  const isInstructor = user && hasAnyRole(user, ['INSTRUCTOR', 'ADMIN', 'CLASS_MONITOR', 'ADVISOR', 'FACULTY_INSTRUCTOR', 'CTSV_STAFF', 'INSTITUTE_COUNCIL']);
   const isAdmin = user && hasAnyRole(user, ['ADMIN']);
   const canManagePeriods = user && hasAnyRole(user, ['ADMIN', 'INSTITUTE_COUNCIL']);
 
