@@ -558,12 +558,13 @@ public class EvaluationService {
         
         // Handle different approval levels based on current status and approver role
         if (oldStatus == EvaluationStatus.SUBMITTED) {
-            // SUBMITTED: Need CLASS_MONITOR to approve
+            // SUBMITTED: Need CLASS_MONITOR or ADMIN to approve
             boolean isClassMonitor = approverRoles != null && approverRoles.contains("CLASS_MONITOR");
+            boolean isAdmin = approverRoles != null && approverRoles.contains("ADMIN");
             
-            if (!isClassMonitor) {
+            if (!isClassMonitor && !isAdmin) {
                 throw new InvalidStateTransitionException(
-                    "Only CLASS_MONITOR can approve SUBMITTED evaluations");
+                    "Only CLASS_MONITOR or ADMIN can approve SUBMITTED evaluations");
             }
             
             // Check if this approver has already approved this evaluation
@@ -633,8 +634,9 @@ public class EvaluationService {
         if (scores != null && !scores.isEmpty()) {
             boolean isClassMonitor = approverRoles != null && approverRoles.contains("CLASS_MONITOR");
             boolean isAdvisor = approverRoles != null && approverRoles.contains("ADVISOR");
+            boolean isAdmin = approverRoles != null && approverRoles.contains("ADMIN");
             
-            logger.info("[DEBUG] Approver type - isClassMonitor={}, isAdvisor={}", isClassMonitor, isAdvisor);
+            logger.info("[DEBUG] Approver type - isClassMonitor={}, isAdvisor={}, isAdmin={}", isClassMonitor, isAdvisor, isAdmin);
             logger.info("[DEBUG] Evaluation has {} details", evaluation.getDetails().size());
             
             for (Map.Entry<Long, Double> entry : scores.entrySet()) {
@@ -650,22 +652,23 @@ public class EvaluationService {
                     .orElse(null);
                 
                 if (detail != null) {
-                    logger.info("[DEBUG] Found detail for criteria {}: detailId={}, currentClassMonitorScore={}, currentAdvisorScore={}", 
-                        criteriaId, detail.getId(), detail.getClassMonitorScore(), detail.getAdvisorScore());
+                    logger.info("[DEBUG] Found detail for criteria {}: currentClassMonitorScore={}, currentAdvisorScore={}", 
+                        criteriaId, detail.getClassMonitorScore(), detail.getAdvisorScore());
                     
-                    if (isClassMonitor && oldStatus == EvaluationStatus.SUBMITTED) {
+                    // ADMIN can save scores at any level
+                    if ((isClassMonitor || isAdmin) && oldStatus == EvaluationStatus.SUBMITTED) {
                         // Save class monitor score
                         detail.setClassMonitorScore(score);
                         logger.info("[DEBUG] Set class monitor score {} for criteria {} in evaluation {}", 
                             score, criteriaId, id);
-                    } else if (isAdvisor && oldStatus == EvaluationStatus.CLASS_APPROVED) {
+                    } else if ((isAdvisor || isAdmin) && oldStatus == EvaluationStatus.CLASS_APPROVED) {
                         // Save advisor score
                         detail.setAdvisorScore(score);
                         logger.info("[DEBUG] Set advisor score {} for criteria {} in evaluation {}", 
                             score, criteriaId, id);
                     } else {
-                        logger.warn("[DEBUG] Score not saved - isClassMonitor={}, isAdvisor={}, oldStatus={}", 
-                            isClassMonitor, isAdvisor, oldStatus);
+                        logger.warn("[DEBUG] Score not saved - isClassMonitor={}, isAdvisor={}, isAdmin={}, oldStatus={}", 
+                            isClassMonitor, isAdvisor, isAdmin, oldStatus);
                     }
                 } else {
                     logger.error("[DEBUG] Criteria {} not found in evaluation {} details. Available criteriaIds: {}", 
@@ -684,9 +687,10 @@ public class EvaluationService {
         if (subCriteriaScores != null && !subCriteriaScores.isEmpty()) {
             boolean isClassMonitor = approverRoles != null && approverRoles.contains("CLASS_MONITOR");
             boolean isAdvisor = approverRoles != null && approverRoles.contains("ADVISOR");
+            boolean isAdmin = approverRoles != null && approverRoles.contains("ADMIN");
             
-            logger.info("[DEBUG] Processing subCriteriaScores: count={}, isClassMonitor={}, isAdvisor={}", 
-                subCriteriaScores.size(), isClassMonitor, isAdvisor);
+            logger.info("[DEBUG] Processing subCriteriaScores: count={}, isClassMonitor={}, isAdvisor={}, isAdmin={}", 
+                subCriteriaScores.size(), isClassMonitor, isAdvisor, isAdmin);
             
             // Group sub-criteria scores by criteriaId
             Map<Long, Map<String, Double>> scoresByCriteria = new HashMap<>();
@@ -747,11 +751,12 @@ public class EvaluationService {
                             scoresData = (Map<String, Object>) commentData.get("scores");
                         }
                         
-                        if (isClassMonitor && oldStatus == EvaluationStatus.SUBMITTED) {
+                        // ADMIN can save scores at any level
+                        if ((isClassMonitor || isAdmin) && oldStatus == EvaluationStatus.SUBMITTED) {
                             scoresData.put("classMonitorSubCriteria", subScores);
                             logger.info("[DEBUG] Saved class monitor sub-criteria scores for criteria {}: {}", 
                                 criteriaId, subScores);
-                        } else if (isAdvisor && oldStatus == EvaluationStatus.CLASS_APPROVED) {
+                        } else if ((isAdvisor || isAdmin) && oldStatus == EvaluationStatus.CLASS_APPROVED) {
                             scoresData.put("advisorSubCriteria", subScores);
                             logger.info("[DEBUG] Saved advisor sub-criteria scores for criteria {}: {}", 
                                 criteriaId, subScores);

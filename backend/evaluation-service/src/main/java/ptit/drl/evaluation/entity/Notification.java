@@ -169,7 +169,11 @@ public class Notification {
         
         // Rubric notifications
         RUBRIC_ACTIVATED,    // Rubric mới được kích hoạt
-        RUBRIC_UPDATED       // Rubric được cập nhật
+        RUBRIC_UPDATED,      // Rubric được cập nhật
+        
+        // Appeal notifications
+        APPEAL_CREATED,      // Khiếu nại được tạo (cho reviewers)
+        APPEAL_REVIEWED      // Khiếu nại đã được xử lý (cho student)
     }
 }
 

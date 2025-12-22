@@ -1,0 +1,201 @@
+﻿                      {Math.round(evaluation.totalPoints || evaluation.totalScore || 0)} Ä‘iá»ƒm
+                      {evaluation.maxScore && ` / ${evaluation.maxScore}`}
+                    </Badge>
+                  </div>
+                </div>
+                {evaluation.submittedAt && (
+                  <div>
+                    <Label>NgÃ y ná»™p</Label>
+                    <p className="text-sm">
+                      {(() => {
+                        // Try to get time from history if available
+                        const submitHistory = evaluation.approvalHistory?.find(h => h.action === 'SUBMITTED');
+                        if (submitHistory?.timestamp) {
+                          return formatDate(submitHistory.timestamp);
+                        }
+                        // Fallback to submittedAt (date only)
+                        return formatDate(evaluation.submittedAt);
+                      })()}
+                    </p>
+                  </div>
+                )}
+                {evaluation.approvedAt && (
+                  <div>
+                    <Label>NgÃ y duyá»‡t</Label>
+                    <p className="text-sm">{formatDate(evaluation.approvedAt)}</p>
+                  </div>
+                )}
+                {evaluation.isCreatedByAdmin && (
+                  <div>
+                    <Label>NgÆ°á»i táº¡o</Label>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">
+                        Táº¡o bá»Ÿi Admin
+                      </Badge>
+                      {evaluation.createdByName && (
+                        <span className="text-sm text-muted-foreground">
+                          ({evaluation.createdByName})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* History Component - Moved here between info and criteria */}
+          <EvaluationHistory 
+            history={evaluation.approvalHistory || evaluation.history || []} 
+            resubmissionCount={evaluation.resubmissionCount}
+          />
+
+          <Card>
+            <CardHeader>
+              <CardTitle>TiÃªu chÃ­ ÄÃ¡nh giÃ¡</CardTitle>
+              <CardDescription className="flex items-center gap-[150px]">
+                <span>
+                  Tá»•ng Ä‘iá»ƒm: <strong>{Math.round(totalScore)} / {rubric.maxScore}</strong>
+                </span>
+                <GradeBadge score={totalScore} />
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {criteriaWithSubCriteria.map((criterion, index) => (
+                <div key={criterion.id} className="space-y-4 border rounded-lg p-4">
+                  {/* Main Criteria Header */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-lg font-semibold">
+                        {index + 1}. {criterion.name}
+                      </h4>
+                      <div className="text-right">
+                        <div className="text-sm text-muted-foreground">
+                          Tá»•ng Ä‘iá»ƒm tiÃªu chÃ­:
+                        </div>
+                        <div className="text-lg font-bold">
+                          {Math.round(criterion.totalScore)} / {criterion.maxPoints} Ä‘iá»ƒm
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* AI Scoring Suggestion - Show for criteria with evidence files */}
+                  {/* AI Analysis Button - Hidden, will trigger from table */}
+
+                  {/* Sub-Criteria Table */}
+                  {criterion.subCriteria.length > 0 ? (
+                    <div className="rounded-md border">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[60px] text-center">MÃ£</TableHead>
+                            <TableHead className="min-w-[250px]">TÃªn tiÃªu chÃ­</TableHead>
+                            <TableHead className="w-[100px] text-center">Äiá»ƒm tá»‘i Ä‘a</TableHead>
+                            <TableHead className="w-[120px] text-center">Äiá»ƒm tá»± cháº¥m</TableHead>
+                            <TableHead className="w-[130px] text-center">Äiá»ƒm lá»›p trÆ°á»Ÿng</TableHead>
+                            <TableHead className="w-[120px] text-center">Äiá»ƒm cá»‘ váº¥n</TableHead>
+                            <TableHead className="w-[200px] text-center">Báº±ng chá»©ng</TableHead>
+                            <TableHead className="w-[80px] text-center">AI</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {criterion.subCriteria.map((sub) => {
+                            // Calculate score distribution for sub-criteria (only for class monitor and advisor scores)
+                            // Student score should come from evidence string, not distributed
+                            const totalMaxPoints = criterion.subCriteria.reduce((sum, s) => sum + s.maxPoints, 0);
+                            const ratio = totalMaxPoints > 0 ? sub.maxPoints / totalMaxPoints : 0;
+                            
+                            // Student score: use actual score from evidence string, not distributed
+                            const studentSubScore = sub.score ?? 0; // Use actual score from evidence, not distributed
+                            
+                            // Calculate distributed scores for class monitor and advisor (they score at criteria level)
+                            const classMonitorSubScore = criterion.classMonitorScore != null 
+                              ? Math.round(criterion.classMonitorScore * ratio * 10) / 10 
+                              : null;
+                            const advisorSubScore = criterion.advisorScore != null 
+                              ? Math.round(criterion.advisorScore * ratio * 10) / 10 
+                              : null;
+                            
+                            // Determine which column to highlight based on evaluation status
+                            const isClassMonitorScoring = evaluation.status === 'SUBMITTED' && canApproveClassLevel(user);
+                            const isAdvisorScoring = evaluation.status === 'CLASS_APPROVED' && canApproveAdvisorLevel(user);
+                            const isFacultyScoring = evaluation.status === 'ADVISOR_APPROVED' && canApproveFacultyLevel(user);
+                            
+                            // Get editable score for this sub-criteria (if user is editing)
+                            // Use a key that includes criteriaId to avoid conflicts between different criteria
+                            const subScoreKey = `${criterion.id}_${sub.id}`;
+                            const editableClassMonitorScore = classMonitorSubCriteriaScores[subScoreKey];
+                            const editableAdvisorScore = advisorSubCriteriaScores[subScoreKey];
+                            
+                            // Calculate displayed score: always prioritize editable score if exists, else use distributed score
+                            // This ensures user-entered scores are always shown, even after approval
+                            // Default to 0 if no score is entered
+                            const displayedClassMonitorScore = editableClassMonitorScore !== undefined && editableClassMonitorScore !== null
+                              ? editableClassMonitorScore
+                              : (classMonitorSubScore !== null && classMonitorSubScore !== undefined ? classMonitorSubScore : 0);
+                            const displayedAdvisorScore = editableAdvisorScore !== undefined && editableAdvisorScore !== null
+                              ? editableAdvisorScore
+                              : (advisorSubScore !== null && advisorSubScore !== undefined ? advisorSubScore : 0);
+                            
+                            // Calculate total for criteria when sub-criteria scores change
+                            // Separate handlers for class monitor and advisor
+                            const handleClassMonitorScoreChange = (value: number) => {
+                              console.log('[DEBUG] handleClassMonitorScoreChange called:', {
+                                subScoreKey,
+                                value,
+                                criterionId: criterion.id,
+                                subId: sub.id
+                              });
+                              
+                              const newSubScores = { ...classMonitorSubCriteriaScores, [subScoreKey]: value };
+                              setClassMonitorSubCriteriaScores(newSubScores);
+                              
+                              // Calculate total for this criterion by summing only sub-criteria scores that have been entered
+                              const criterionSubScores: number[] = [];
+                              criterion.subCriteria.forEach(s => {
+                                const sKey = `${criterion.id}_${s.id}`;
+                                const subScore = newSubScores[sKey];
+                                // Only include scores that have been explicitly entered (not undefined/null)
+                                if (subScore !== undefined && subScore !== null) {
+                                  criterionSubScores.push(subScore);
+                                }
+                              });
+                              
+                              // Calculate total from entered scores only
+                              const total = criterionSubScores.reduce((sum, score) => {
+                                const numScore = Number(score);
+                                if (isNaN(numScore) || !isFinite(numScore)) {
+                                  console.warn('[DEBUG] Invalid score in calculation:', score);
+                                  return sum;
+                                }
+                                return sum + numScore;
+                              }, 0);
+                              
+                              // Ensure total is valid
+                              const validTotal = isNaN(total) || !isFinite(total) ? 0 : total;
+                              
+                              // Get maxPoints, default to a large number if undefined
+                              const maxPoints = criterion.maxPoints !== undefined && criterion.maxPoints !== null 
+                                ? Number(criterion.maxPoints) 
+                                : Number.MAX_SAFE_INTEGER;
+                              
+                              console.log('[DEBUG] Calculated total for criterion (class monitor):', {
+                                criterionId: criterion.id,
+                                criterionSubScores,
+                                total: validTotal,
+                                maxPoints: criterion.maxPoints,
+                                finalScore: Math.min(Math.max(0, validTotal), maxPoints)
+                              });
+                              
+                              setApprovalScores(prev => {
+                                const finalScore = Math.min(Math.max(0, validTotal), maxPoints);
+                                const updated = {
+                                  ...prev,
+                                  [criterion.id]: finalScore
+                                };
+                                console.log('[DEBUG] Updated approvalScores:', updated);
+                                return updated;
+                              });
+                            };
+                            

@@ -336,3 +336,7 @@ Một số vi phạm có thể là **có chủ ý** để tối ưu performance:
 - **3NF**: Phải đạt 2NF và không có transitive dependency (non-prime attribute không phụ thuộc vào non-prime attribute khác)
 
 **Lưu ý:** Trong microservices architecture, một số denormalization là **acceptable** và **recommended** để tránh cross-service joins. Tuy nhiên, cần document rõ ràng và có strategy để đồng bộ dữ liệu.
+
+
+
+

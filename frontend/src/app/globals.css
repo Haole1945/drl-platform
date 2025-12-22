@@ -138,4 +138,18 @@
     font-size: 1.125rem; /* Từ 1.125rem - giữ nguyên */
     line-height: 1.75rem;
   }
+
+  /* Hide browser's default password reveal button */
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
+  
+  input[type="password"]::-webkit-credentials-auto-fill-button,
+  input[type="password"]::-webkit-contacts-auto-fill-button {
+    visibility: hidden;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+  }
 }

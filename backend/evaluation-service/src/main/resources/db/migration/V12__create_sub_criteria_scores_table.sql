@@ -25,3 +25,7 @@ COMMENT ON TABLE evaluation_sub_criteria_scores IS 'Stores individual sub-criter
 COMMENT ON COLUMN evaluation_sub_criteria_scores.class_monitor_score IS 'Score given by CLASS_MONITOR for this sub-criteria';
 COMMENT ON COLUMN evaluation_sub_criteria_scores.advisor_score IS 'Score given by ADVISOR for this sub-criteria';
 
+
+
+
+

@@ -15,6 +15,8 @@ import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/StatusBadge';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { InlineGrade } from '@/components/GradeBadge';
+import { StudentAppealCard, ReviewerAppealCard } from '@/components/DashboardAppealCards';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -152,6 +154,10 @@ export default function DashboardPage() {
               </Card>
             )}
 
+            {user?.studentCode && <StudentAppealCard />}
+            
+            <ReviewerAppealCard />
+
             {canApprove && (
               <Card>
                 <CardHeader>
@@ -227,8 +233,11 @@ export default function DashboardPage() {
                         >
                           <div>
                             <div className="font-medium">{evaluation.semester}</div>
-                            <div className="text-sm text-muted-foreground">
-                              Điểm: {Math.round(evaluation.totalPoints || evaluation.totalScore || 0)} / {evaluation.maxScore || evaluation.rubricName || 'N/A'}
+                            <div className="text-sm text-muted-foreground flex items-center gap-[150px]">
+                              <span>
+                                Điểm: {Math.round(evaluation.totalPoints || evaluation.totalScore || 0)} / {evaluation.maxScore || evaluation.rubricName || 'N/A'}
+                              </span>
+                              <InlineGrade score={evaluation.totalPoints || evaluation.totalScore || 0} />
                             </div>
                           </div>
                         </Link>

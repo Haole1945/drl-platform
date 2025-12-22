@@ -18,6 +18,7 @@ import { FileUpload, type UploadedFile } from '@/components/FileUpload';
 import { Loader2, AlertCircle, Save, Send } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { parseEvidence } from '@/lib/evidence-parser';
+import { GradeBadge } from '@/components/GradeBadge';
 
 export default function EditEvaluationPage() {
   const { user } = useAuth();
@@ -296,8 +297,9 @@ export default function EditEvaluationPage() {
           <Card>
             <CardHeader>
               <CardTitle>Tiêu chí Đánh giá</CardTitle>
-              <CardDescription>
-                Tổng điểm hiện tại: <strong>{totalScore}</strong>
+              <CardDescription className="flex items-center gap-[150px]">
+                <span>Tổng điểm hiện tại: <strong>{totalScore}</strong></span>
+                <GradeBadge score={totalScore} />
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

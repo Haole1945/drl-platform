@@ -5,13 +5,13 @@
 -- Insert sample evaluation period (if none exists)
 INSERT INTO evaluation_periods (name, semester, academic_year, start_date, end_date, is_active, description)
 SELECT 
-    'Đợt 1 - Học kỳ 1 năm học 2024-2025',
-    '2024-2025-HK1',
-    '2024-2025',
-    '2025-11-20'::date,
+    'Đợt 1 - Học kỳ 1 năm học 2025-2026',
+    'HK1',
+    '2025-2026',
     '2025-12-20'::date,
+    '2026-01-31'::date,
     true,
-    'Đợt đánh giá điểm rèn luyện học kỳ 1 năm học 2024-2025'
+    'Đợt đánh giá điểm rèn luyện học kỳ 1 năm học 2025-2026'
 WHERE NOT EXISTS (
     SELECT 1 FROM evaluation_periods WHERE is_active = true
 );

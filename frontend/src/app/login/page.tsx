@@ -107,11 +107,16 @@ export default function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   className="pr-10"
+                  style={{
+                    // Hide browser's default password reveal button
+                    WebkitTextSecurity: showPassword ? 'none' : undefined,
+                  } as React.CSSProperties}
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors z-10"
                   aria-label={showPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"}
                 >
                   {showPassword ? (

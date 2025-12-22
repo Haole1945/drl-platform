@@ -101,8 +101,8 @@ export function AiScoringSuggestionCompact({
                   <span className="text-xs font-medium text-gray-700">
                     {subScore.subCriteriaId}
                   </span>
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" title="Evidence verified" />
+                  <div className="flex items-center gap-2" title="Evidence verified">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
                     <span className="text-xs font-semibold text-purple-700">
                       {subScore.suggestedScore}/{subScore.maxScore}
                     </span>

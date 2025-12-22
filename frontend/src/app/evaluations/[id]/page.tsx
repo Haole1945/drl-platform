@@ -18,12 +18,13 @@ import { canApproveClassLevel, canApproveAdvisorLevel, canApproveFacultyLevel } 
 import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria,SubCriteria } from '@/types/evaluation';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { getOpenPeriod , getAuthToken} from '@/lib/api';
 import { parseSubCriteria } from '@/lib/criteria-parser';
 import { parseEvidence, getFileNameFromUrl } from '@/lib/evidence-parser';
 import { formatDateTime, formatDate as formatDateUtil } from '@/lib/date-utils';
 import { getScoringsuggestion } from '@/lib/api/ai-scoring';
+import { AppealButton } from '@/components/AppealButton';
 
 import {
   Dialog,
@@ -101,8 +102,8 @@ export default function EvaluationDetailPage() {
         ...criterion,
         subCriteria: subCriteriaWithData,
         totalScore: studentScore,
-        classMonitorScore: classMonitorScore,
-        advisorScore: advisorScore,
+        classMonitorScore: classMonitorScore ?? undefined,
+        advisorScore: advisorScore ?? undefined,
         finalScore: finalScore, // Score to display (advisor > class monitor > student)
       };
     });
@@ -158,19 +159,19 @@ export default function EvaluationDetailPage() {
             setCriteria(criteriaResponse.data);
             
             // Initialize sub-criteria scores from existing scores if available
-            // Only initialize if state is empty (first load), don't override user's entered scores
             const initialClassMonitorScores: Record<string, number> = {};
             const initialAdvisorScores: Record<string, number> = {};
             
-            // Only load from database if state is empty (not already entered by user)
-            if (Object.keys(classMonitorSubCriteriaScores).length === 0 && 
-                Object.keys(advisorSubCriteriaScores).length === 0 && 
-                evalData.details) {
+            // Always load scores from database when evaluation data is available
+            if (evalData.details) {
               evalData.details.forEach(detail => {
                 // Find the criterion
                 const criterion = criteriaResponse.data.find((c: Criteria) => c.id === detail.criteriaId);
-                if (criterion && criterion.subCriteria) {
-                  // Try to parse sub-criteria scores from comment (JSON format)
+                if (criterion) {
+                  // Parse sub-criteria from description
+                  const subCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
+                  if (subCriteria && subCriteria.length > 0) {
+                    // Try to parse sub-criteria scores from comment (JSON format)
                   // Note: comment is mapped to both note and evidence in DTO
                   // note contains the raw comment, evidence may have prefix removed
                   let parsedSubCriteriaScores: any = null;
@@ -199,7 +200,7 @@ export default function EvaluationDetailPage() {
                       }
                     } catch (e) {
                       // JSON parse failed
-                      console.error('[DEBUG] Failed to parse JSON comment:', e.message);
+                      console.error('[DEBUG] Failed to parse JSON comment:', e instanceof Error ? e.message : String(e));
                     }
                   } else if (commentText) {
                     // Not JSON (evidence string), will fallback to distribution
@@ -224,34 +225,41 @@ export default function EvaluationDetailPage() {
                     }
                   } else {
                     // Fallback: distribute total score proportionally (for backward compatibility)
-                    const totalMaxPoints = criterion.subCriteria.reduce((sum: number, s: any) => sum + s.maxPoints, 0);
+                    const totalMaxPoints = subCriteria.reduce((sum: number, s: any) => sum + s.maxPoints, 0);
                     // If class monitor score exists, distribute it
-                    if (detail.classMonitorScore != null) {
-                      criterion.subCriteria.forEach((sub: any) => {
+                    if (detail.classMonitorScore != null && detail.classMonitorScore !== undefined) {
+                      subCriteria.forEach((sub: any) => {
                         const ratio = totalMaxPoints > 0 ? sub.maxPoints / totalMaxPoints : 0;
-                        const distributedScore = Math.round(detail.classMonitorScore * ratio * 10) / 10;
+                        const distributedScore = Math.round(detail.classMonitorScore! * ratio * 10) / 10;
                         const subScoreKey = `${detail.criteriaId}_${sub.id}`;
                         initialClassMonitorScores[subScoreKey] = distributedScore;
                       });
                     }
                     // If advisor score exists, distribute it separately
-                    if (detail.advisorScore != null) {
-                      criterion.subCriteria.forEach((sub: any) => {
+                    if (detail.advisorScore != null && detail.advisorScore !== undefined) {
+                      subCriteria.forEach((sub: any) => {
                         const ratio = totalMaxPoints > 0 ? sub.maxPoints / totalMaxPoints : 0;
-                        const distributedScore = Math.round(detail.advisorScore * ratio * 10) / 10;
+                        const distributedScore = Math.round(detail.advisorScore! * ratio * 10) / 10;
                         const subScoreKey = `${detail.criteriaId}_${sub.id}`;
                         initialAdvisorScores[subScoreKey] = distributedScore;
                       });
                     }
                   }
+                  }
                 }
               });
               
               if (Object.keys(initialClassMonitorScores).length > 0) {
+                console.log('[DEBUG] Setting classMonitorSubCriteriaScores:', initialClassMonitorScores);
                 setClassMonitorSubCriteriaScores(initialClassMonitorScores);
+              } else {
+                console.log('[DEBUG] No class monitor scores to set');
               }
               if (Object.keys(initialAdvisorScores).length > 0) {
+                console.log('[DEBUG] Setting advisorSubCriteriaScores:', initialAdvisorScores);
                 setAdvisorSubCriteriaScores(initialAdvisorScores);
+              } else {
+                console.log('[DEBUG] No advisor scores to set');
               }
             }
             
@@ -406,7 +414,7 @@ export default function EvaluationDetailPage() {
   // Check if evaluation period is still open for editing (for submitted evaluations)
   useEffect(() => {
     const checkPeriod = async () => {
-      if (evaluation && (evaluation.status === 'SUBMITTED' || evaluation.status === 'CLASS_APPROVED' || evaluation.status === 'FACULTY_APPROVED')) {
+      if (evaluation && evaluation.status && (evaluation.status === 'SUBMITTED' || evaluation.status === 'CLASS_APPROVED' || evaluation.status === 'FACULTY_APPROVED')) {
         try {
           const periodResponse = await getOpenPeriod();
           if (periodResponse.success && periodResponse.data) {
@@ -558,8 +566,8 @@ export default function EvaluationDetailPage() {
       const calculatedScores: Record<number, number> = {};
       
       // Determine which scores to use based on approver role
-      const isClassMonitor = canApproveClassLevel(user) && evaluation.status === 'SUBMITTED';
-      const isAdvisor = canApproveAdvisorLevel(user) && evaluation.status === 'CLASS_APPROVED';
+      const isClassMonitor = canApproveClassLevel(user) && evaluation?.status === 'SUBMITTED';
+      const isAdvisor = canApproveAdvisorLevel(user) && evaluation?.status === 'CLASS_APPROVED';
       
       const scoresToCalculate = isClassMonitor ? classMonitorSubCriteriaScores : 
                                 isAdvisor ? advisorSubCriteriaScores : {};
@@ -820,6 +828,33 @@ export default function EvaluationDetailPage() {
             <div className="flex flex-col items-end gap-2">
               <StatusBadge status={evaluation.status} />
               <div className="flex items-center gap-2">
+                {/* Debug: Log appeal button conditions */}
+                {(() => {
+                  console.log('[DEBUG] Appeal Button Conditions:', {
+                    isOwner,
+                    userStudentCode: user?.studentCode,
+                    evaluationStudentCode: evaluation.studentCode,
+                    evaluationStatus: evaluation.status,
+                    isFacultyApproved: evaluation.status === 'FACULTY_APPROVED',
+                    isRejected: evaluation.status === 'REJECTED',
+                    shouldShowButton: isOwner && (evaluation.status === 'FACULTY_APPROVED' || evaluation.status === 'REJECTED'),
+                    criteriaCount: criteria.length
+                  });
+                  return null;
+                })()}
+                
+                {/* Appeal Button - Show for owner when evaluation is approved or rejected */}
+                {isOwner && (evaluation.status === 'FACULTY_APPROVED' || evaluation.status === 'REJECTED') && (
+                  <AppealButton
+                    evaluationId={evaluation.id}
+                    evaluationStatus={evaluation.status}
+                    criteria={criteria.map(c => ({ id: c.id, name: c.name }))}
+                    onAppealCreated={() => {
+                      // Reload evaluation to show updated status
+                      window.location.reload();
+                    }}
+                  />
+                )}
                 {canEdit && (
                   <Button variant="outline" size="sm" onClick={() => router.push(`/evaluations/${evaluation.id}/edit`)}>
                     <Edit className="mr-2 h-4 w-4" />
@@ -933,6 +968,96 @@ export default function EvaluationDetailPage() {
             resubmissionCount={evaluation.resubmissionCount}
           />
 
+          {/* Summary Card - Total scores for all criteria */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tổng điểm các loại đánh giá</CardTitle>
+              <CardDescription>
+                Tổng hợp điểm từ tất cả các tiêu chí
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Điểm tối đa</Label>
+                  <div className="text-2xl font-bold">
+                    {rubric.maxScore}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Điểm tự chấm</Label>
+                  <div className="text-2xl font-bold text-primary">
+                    {(() => {
+                      // Calculate total student score from all criteria
+                      const total = criteriaWithSubCriteria.reduce((sum, criterion) => {
+                        const criterionTotal = criterion.subCriteria.reduce((subSum, sub) => subSum + (sub.score ?? 0), 0);
+                        return sum + criterionTotal;
+                      }, 0);
+                      return Math.round(total * 10) / 10;
+                    })()}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Điểm lớp trưởng</Label>
+                  <div className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">
+                    {(() => {
+                      // Check if class monitor has scored based on evaluation status
+                      // Class monitor scores when status >= CLASS_APPROVED
+                      const hasClassMonitorScored = evaluation.status === 'CLASS_APPROVED' || 
+                                                    evaluation.status === 'ADVISOR_APPROVED' || 
+                                                    evaluation.status === 'FACULTY_APPROVED';
+                      
+                      if (!hasClassMonitorScored) {
+                        return <span className="text-base text-muted-foreground">Chưa chấm</span>;
+                      }
+                      
+                      // Calculate total class monitor score from all criteria
+                      const total = criteriaWithSubCriteria.reduce((sum, criterion) => {
+                        const stateTotal = criterion.subCriteria.reduce((subSum, sub) => {
+                          const subScoreKey = `${criterion.id}_${sub.id}`;
+                          const score = classMonitorSubCriteriaScores[subScoreKey];
+                          return subSum + (score ?? 0);
+                        }, 0);
+                        // If state has scores, use them; otherwise use criterion score
+                        const criterionTotal = stateTotal > 0 ? stateTotal : (criterion.classMonitorScore ?? 0);
+                        return sum + criterionTotal;
+                      }, 0);
+                      return Math.round(total * 10) / 10;
+                    })()}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-muted-foreground">Điểm cố vấn</Label>
+                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                    {(() => {
+                      // Check if advisor has scored based on evaluation status
+                      // Advisor scores when status >= ADVISOR_APPROVED
+                      const hasAdvisorScored = evaluation.status === 'ADVISOR_APPROVED' || 
+                                               evaluation.status === 'FACULTY_APPROVED';
+                      
+                      if (!hasAdvisorScored) {
+                        return <span className="text-base text-muted-foreground">Chưa chấm</span>;
+                      }
+                      
+                      // Calculate total advisor score from all criteria
+                      const total = criteriaWithSubCriteria.reduce((sum, criterion) => {
+                        const stateTotal = criterion.subCriteria.reduce((subSum, sub) => {
+                          const subScoreKey = `${criterion.id}_${sub.id}`;
+                          const score = advisorSubCriteriaScores[subScoreKey];
+                          return subSum + (score ?? 0);
+                        }, 0);
+                        // If state has scores, use them; otherwise use criterion score
+                        const criterionTotal = stateTotal > 0 ? stateTotal : (criterion.advisorScore ?? 0);
+                        return sum + criterionTotal;
+                      }, 0);
+                      return Math.round(total * 10) / 10;
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Tiêu chí Đánh giá</CardTitle>
@@ -1008,15 +1133,27 @@ export default function EvaluationDetailPage() {
                             const editableClassMonitorScore = classMonitorSubCriteriaScores[subScoreKey];
                             const editableAdvisorScore = advisorSubCriteriaScores[subScoreKey];
                             
-                            // Calculate displayed score: always prioritize editable score if exists, else use distributed score
-                            // This ensures user-entered scores are always shown, even after approval
-                            // Default to 0 if no score is entered
+                            // Debug log for first sub-criteria
+                            if (sub.id === '1.1') {
+                              console.log('[DEBUG] Display calculation for sub 1.1:', {
+                                subScoreKey,
+                                editableClassMonitorScore,
+                                classMonitorSubScore,
+                                isClassMonitorScoring,
+                                'classMonitorSubCriteriaScores': classMonitorSubCriteriaScores,
+                                'criterion.classMonitorScore': criterion.classMonitorScore
+                              });
+                            }
+                            
+                            // Calculate displayed score: prioritize editable score from state
+                            // If no score in state and not currently scoring, show "-" instead of distributed score
+                            // Only show distributed score when actively scoring (for backward compatibility)
                             const displayedClassMonitorScore = editableClassMonitorScore !== undefined && editableClassMonitorScore !== null
                               ? editableClassMonitorScore
-                              : (classMonitorSubScore !== null && classMonitorSubScore !== undefined ? classMonitorSubScore : 0);
+                              : (isClassMonitorScoring && classMonitorSubScore !== null && classMonitorSubScore !== undefined ? classMonitorSubScore : null);
                             const displayedAdvisorScore = editableAdvisorScore !== undefined && editableAdvisorScore !== null
                               ? editableAdvisorScore
-                              : (advisorSubScore !== null && advisorSubScore !== undefined ? advisorSubScore : 0);
+                              : (isAdvisorScoring && advisorSubScore !== null && advisorSubScore !== undefined ? advisorSubScore : null);
                             
                             // Calculate total for criteria when sub-criteria scores change
                             // Separate handlers for class monitor and advisor
@@ -1175,7 +1312,7 @@ export default function EvaluationDetailPage() {
                                     />
                                   ) : (
                                     <span className="font-semibold text-yellow-700 dark:text-yellow-400">
-                                      {displayedClassMonitorScore ?? 0}
+                                      {displayedClassMonitorScore !== null && displayedClassMonitorScore !== undefined ? displayedClassMonitorScore : 0}
                                     </span>
                                   )}
                                 </TableCell>
@@ -1195,7 +1332,7 @@ export default function EvaluationDetailPage() {
                                     />
                                   ) : (
                                     <span className="font-semibold text-green-700 dark:text-green-400">
-                                      {displayedAdvisorScore ?? 0}
+                                      {displayedAdvisorScore !== null && displayedAdvisorScore !== undefined ? displayedAdvisorScore : 0}
                                     </span>
                                   )}
                                 </TableCell>
@@ -1242,7 +1379,7 @@ export default function EvaluationDetailPage() {
                                       if (sub.evidence && sub.evidence.length > 0) {
                                         return (
                                           <div className="flex items-center justify-center gap-1.5">
-                                            <CheckCircle2 className="h-4 w-4 text-green-600" title="Evidence verified" />
+                                            <CheckCircle2 className="h-4 w-4 text-green-600" />
                                             <span className="text-xs font-semibold text-purple-700 dark:text-purple-400">
                                               {aiScore.score}/{aiScore.maxScore}
                                             </span>
@@ -1257,6 +1394,67 @@ export default function EvaluationDetailPage() {
                             );
                           })}
                         </TableBody>
+                        <TableFooter>
+                          <TableRow className="bg-muted/50">
+                            <TableCell colSpan={2} className="text-right font-semibold">
+                              Tổng điểm tiêu chí:
+                            </TableCell>
+                            <TableCell className="text-center font-bold">
+                              {criterion.maxPoints}
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-primary">
+                              {(() => {
+                                // Calculate total student score from sub-criteria
+                                const total = criterion.subCriteria.reduce((sum, sub) => sum + (sub.score ?? 0), 0);
+                                return Math.round(total * 10) / 10;
+                              })()}
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-yellow-700 dark:text-yellow-400">
+                              {(() => {
+                                // Check if class monitor has scored based on evaluation status
+                                const hasClassMonitorScored = evaluation.status === 'CLASS_APPROVED' || 
+                                                              evaluation.status === 'ADVISOR_APPROVED' || 
+                                                              evaluation.status === 'FACULTY_APPROVED';
+                                
+                                if (!hasClassMonitorScored) {
+                                  return <span className="text-sm text-muted-foreground font-normal">Chưa chấm</span>;
+                                }
+                                
+                                // Calculate total class monitor score from state or criterion
+                                const stateTotal = criterion.subCriteria.reduce((sum, sub) => {
+                                  const subScoreKey = `${criterion.id}_${sub.id}`;
+                                  const score = classMonitorSubCriteriaScores[subScoreKey];
+                                  return sum + (score ?? 0);
+                                }, 0);
+                                // If state has scores, use them; otherwise use criterion score
+                                const total = stateTotal > 0 ? stateTotal : (criterion.classMonitorScore ?? 0);
+                                return Math.round(total * 10) / 10;
+                              })()}
+                            </TableCell>
+                            <TableCell className="text-center font-bold text-green-700 dark:text-green-400">
+                              {(() => {
+                                // Check if advisor has scored based on evaluation status
+                                const hasAdvisorScored = evaluation.status === 'ADVISOR_APPROVED' || 
+                                                         evaluation.status === 'FACULTY_APPROVED';
+                                
+                                if (!hasAdvisorScored) {
+                                  return <span className="text-sm text-muted-foreground font-normal">Chưa chấm</span>;
+                                }
+                                
+                                // Calculate total advisor score from state or criterion
+                                const stateTotal = criterion.subCriteria.reduce((sum, sub) => {
+                                  const subScoreKey = `${criterion.id}_${sub.id}`;
+                                  const score = advisorSubCriteriaScores[subScoreKey];
+                                  return sum + (score ?? 0);
+                                }, 0);
+                                // If state has scores, use them; otherwise use criterion score
+                                const total = stateTotal > 0 ? stateTotal : (criterion.advisorScore ?? 0);
+                                return Math.round(total * 10) / 10;
+                              })()}
+                            </TableCell>
+                            <TableCell colSpan={2}></TableCell>
+                          </TableRow>
+                        </TableFooter>
                       </Table>
                     </div>
                   ) : (

@@ -14,3 +14,7 @@ COMMENT ON COLUMN evaluation_details.advisor_score IS 'Score given by ADVISOR fo
 CREATE INDEX IF NOT EXISTS idx_eval_detail_class_monitor_score ON evaluation_details(evaluation_id) WHERE class_monitor_score IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_eval_detail_advisor_score ON evaluation_details(evaluation_id) WHERE advisor_score IS NOT NULL;
 
+
+
+
+

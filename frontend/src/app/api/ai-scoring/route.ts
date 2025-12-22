@@ -216,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     // Build prompt based on whether we have sub-criteria
     let systemPrompt = '';
-    let userPrompt = '';
+    let userPrompt: string | any[] = '';
 
     if (hasSubCriteria && subCriteriaWithFiles.length > 0) {
       // Phân tích CHỈ các sub-criteria có file

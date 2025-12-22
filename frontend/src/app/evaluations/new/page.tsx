@@ -29,6 +29,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { GradeBadge } from '@/components/GradeBadge';
 
 export default function NewEvaluationPage() {
   const { user } = useAuth();
@@ -840,8 +841,11 @@ export default function NewEvaluationPage() {
           <Card>
             <CardHeader>
               <CardTitle>Tiêu chí Đánh giá</CardTitle>
-              <CardDescription>
-                Tổng điểm hiện tại: <strong>{totalScore} / {rubric.maxScore}</strong>
+              <CardDescription className="flex items-center gap-[150px]">
+                <span>
+                  Tổng điểm hiện tại: <strong>{totalScore} / {rubric.maxScore}</strong>
+                </span>
+                <GradeBadge score={totalScore} />
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">

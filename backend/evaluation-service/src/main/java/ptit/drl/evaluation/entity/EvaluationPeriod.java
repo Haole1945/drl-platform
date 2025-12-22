@@ -47,6 +47,9 @@ public class EvaluationPeriod {
     @Column(name = "target_classes", columnDefinition = "TEXT")
     private String targetClasses; // Lớp/khoa/ngành áp dụng (FACULTY:CNTT, MAJOR:DCCN, CLASS:D21DCCN01-N)
     
+    @Column(name = "appeal_deadline_days")
+    private Integer appealDeadlineDays = 7; // Số ngày sau khi kết thúc đợt để khiếu nại (mặc định 7 ngày)
+    
     // Constructors
     public EvaluationPeriod() {}
     
@@ -164,6 +167,14 @@ public class EvaluationPeriod {
     
     public void setTargetClasses(String targetClasses) {
         this.targetClasses = targetClasses;
+    }
+    
+    public Integer getAppealDeadlineDays() {
+        return appealDeadlineDays;
+    }
+    
+    public void setAppealDeadlineDays(Integer appealDeadlineDays) {
+        this.appealDeadlineDays = appealDeadlineDays;
     }
 }
 

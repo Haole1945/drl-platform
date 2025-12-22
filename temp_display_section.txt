@@ -1,0 +1,201 @@
+﻿                            
+                            const handleAdvisorScoreChange = (value: number) => {
+                              console.log('[DEBUG] handleAdvisorScoreChange called:', {
+                                subScoreKey,
+                                value,
+                                criterionId: criterion.id,
+                                subId: sub.id
+                              });
+                              
+                              const newSubScores = { ...advisorSubCriteriaScores, [subScoreKey]: value };
+                              setAdvisorSubCriteriaScores(newSubScores);
+                              
+                              // Calculate total for this criterion by summing only sub-criteria scores that have been entered
+                              const criterionSubScores: number[] = [];
+                              criterion.subCriteria.forEach(s => {
+                                const sKey = `${criterion.id}_${s.id}`;
+                                const subScore = newSubScores[sKey];
+                                // Only include scores that have been explicitly entered (not undefined/null)
+                                if (subScore !== undefined && subScore !== null) {
+                                  criterionSubScores.push(subScore);
+                                }
+                              });
+                              
+                              // Calculate total from entered scores only
+                              const total = criterionSubScores.reduce((sum, score) => {
+                                const numScore = Number(score);
+                                if (isNaN(numScore) || !isFinite(numScore)) {
+                                  console.warn('[DEBUG] Invalid score in calculation:', score);
+                                  return sum;
+                                }
+                                return sum + numScore;
+                              }, 0);
+                              
+                              // Ensure total is valid
+                              const validTotal = isNaN(total) || !isFinite(total) ? 0 : total;
+                              
+                              // Get maxPoints, default to a large number if undefined
+                              const maxPoints = criterion.maxPoints !== undefined && criterion.maxPoints !== null 
+                                ? Number(criterion.maxPoints) 
+                                : Number.MAX_SAFE_INTEGER;
+                              
+                              console.log('[DEBUG] Calculated total for criterion (advisor):', {
+                                criterionId: criterion.id,
+                                criterionSubScores,
+                                total: validTotal,
+                                maxPoints: criterion.maxPoints,
+                                finalScore: Math.min(Math.max(0, validTotal), maxPoints)
+                              });
+                              
+                              setApprovalScores(prev => {
+                                const finalScore = Math.min(Math.max(0, validTotal), maxPoints);
+                                const updated = {
+                                  ...prev,
+                                  [criterion.id]: finalScore
+                                };
+                                console.log('[DEBUG] Updated approvalScores:', updated);
+                                return updated;
+                              });
+                            };
+                            
+                            return (
+                              <TableRow key={sub.id}>
+                                <TableCell className="text-center font-medium text-muted-foreground">
+                                  {sub.id}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="font-medium">{sub.name}</div>
+                                  {sub.description && (
+                                    <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                                      {sub.description}
+                                    </div>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <span className="font-medium">{sub.maxPoints}</span>
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  <span className={`font-semibold ${isClassMonitorScoring || isAdvisorScoring || isFacultyScoring ? '' : 'text-primary'}`}>
+                                    {sub.score ?? 0}
+                                  </span>
+                                </TableCell>
+                                <TableCell className={`text-center ${isClassMonitorScoring ? 'bg-yellow-100 dark:bg-yellow-900/30' : ''}`}>
+                                  {isClassMonitorScoring ? (
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max={sub.maxPoints}
+                                      step="0.1"
+                                      value={displayedClassMonitorScore ?? 0}
+                                      onChange={(e) => {
+                                        const value = parseFloat(e.target.value) || 0;
+                                        handleClassMonitorScoreChange(Math.min(Math.max(0, value), sub.maxPoints));
+                                      }}
+                                      className="w-20 h-8 text-center text-sm font-semibold bg-white dark:bg-gray-800"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-yellow-700 dark:text-yellow-400">
+                                      {displayedClassMonitorScore ?? 0}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell className={`text-center ${isAdvisorScoring ? 'bg-green-100 dark:bg-green-900/30' : ''}`}>
+                                  {isAdvisorScoring ? (
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max={sub.maxPoints}
+                                      step="0.1"
+                                      value={displayedAdvisorScore ?? 0}
+                                      onChange={(e) => {
+                                        const value = parseFloat(e.target.value) || 0;
+                                        handleAdvisorScoreChange(Math.min(Math.max(0, value), sub.maxPoints));
+                                      }}
+                                      className="w-20 h-8 text-center text-sm font-semibold bg-white dark:bg-gray-800"
+                                    />
+                                  ) : (
+                                    <span className="font-semibold text-green-700 dark:text-green-400">
+                                      {displayedAdvisorScore ?? 0}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                <TableCell>
+                                  {sub.evidence && sub.evidence.length > 0 ? (
+                                    <div className="flex flex-col gap-1.5 items-center">
+                                      {(() => {
+                                        // Parse evidence string (comma-separated URLs) into array
+                                        const fileUrls = sub.evidence.split(',').map(url => url.trim()).filter(Boolean);
+                                        return fileUrls.slice(0, 3).map((url, idx) => (
+                                          <a
+                                            key={idx}
+                                            href={`${API_BASE}${url}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-primary hover:underline flex items-center gap-1.5 hover:text-primary/80 transition-colors"
+                                          >
+                                            <ExternalLink className="h-3.5 w-3.5" />
+                                            <span className="max-w-[150px] truncate">{getFileNameFromUrl(url)}</span>
+                                          </a>
+                                        ));
+                                      })()}
+                                      {(() => {
+                                        const fileUrls = sub.evidence.split(',').map(url => url.trim()).filter(Boolean);
+                                        return fileUrls.length > 3 ? (
+                                          <span className="text-xs text-muted-foreground">
+                                            +{fileUrls.length - 3} file
+                                          </span>
+                                        ) : null;
+                                      })()}
+                                    </div>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground text-center block">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {/* AI Score column */}
+                                  {(() => {
+                                    const aiScore = aiScores[sub.id];
+                                    if (aiScore) {
+                                      if (aiScore.loading) {
+                                        return <Loader2 className="h-4 w-4 animate-spin text-purple-600 mx-auto" />;
+                                      }
+                                      if (sub.evidence && sub.evidence.length > 0) {
+                                        return (
+                                          <div className="flex items-center justify-center gap-1.5">
+                                            <CheckCircle2 className="h-4 w-4 text-green-600" title="Evidence verified" />
+                                            <span className="text-xs font-semibold text-purple-700 dark:text-purple-400">
+                                              {aiScore.score}/{aiScore.maxScore}
+                                            </span>
+                                          </div>
+                                        );
+                                      }
+                                    }
+                                    return <span className="text-xs text-muted-foreground">-</span>;
+                                  })()}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ) : (
+                    // Fallback: If no sub-criteria, show simple format
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        {criterion.description}
+                      </p>
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div>
+                          <Label>Äiá»ƒm tá»± cháº¥m</Label>
+                          <p className="text-sm font-medium">
+                            {Math.round(criterion.totalScore)} / {criterion.maxPoints} Ä‘iá»ƒm
+                          </p>
+                        </div>
+                        <div>
+                          <Label>Báº±ng chá»©ng</Label>
+                          {(() => {
+                            const detail = evaluation.details.find(d => d.criteriaId === criterion.id);
+                            const evidence = detail?.evidence || '';
+                            const fileUrls = evidence.match(/\/files\/evidence\/[^\s,]+/g) || [];
+                            return fileUrls.length > 0 ? (

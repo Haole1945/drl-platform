@@ -524,6 +524,88 @@ public class NotificationService {
     }
     
     /**
+     * Notify faculty when appeal is created
+     */
+    public void notifyAppealCreated(Long appealId, String studentName, String studentCode, 
+                                   String semester, String facultyCode) {
+        if (authServiceClient == null) {
+            logger.warn("AuthServiceClient is not available, skipping notification for appeal: {}", appealId);
+            return;
+        }
+        
+        try {
+            List<Long> reviewerIds = new java.util.ArrayList<>();
+            
+            // Get FACULTY_INSTRUCTOR and ADMIN users
+            try {
+                AuthServiceClient.UserIdsResponse facultyResponse = 
+                    authServiceClient.getUserIdsByRole("FACULTY_INSTRUCTOR");
+                if (facultyResponse != null && facultyResponse.isSuccess() && facultyResponse.getData() != null) {
+                    reviewerIds.addAll(facultyResponse.getData());
+                    logger.debug("Found {} FACULTY_INSTRUCTOR reviewers", facultyResponse.getData().size());
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to get FACULTY_INSTRUCTOR IDs, error: {}", e.getMessage());
+            }
+            
+            try {
+                AuthServiceClient.UserIdsResponse adminResponse = 
+                    authServiceClient.getUserIdsByRole("ADMIN");
+                if (adminResponse != null && adminResponse.isSuccess() && adminResponse.getData() != null) {
+                    reviewerIds.addAll(adminResponse.getData());
+                    logger.debug("Found {} ADMIN reviewers", adminResponse.getData().size());
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to get ADMIN IDs, error: {}", e.getMessage());
+            }
+            
+            // Remove duplicates
+            reviewerIds = reviewerIds.stream().distinct().collect(Collectors.toList());
+            
+            if (reviewerIds.isEmpty()) {
+                logger.warn("No reviewers found for appeal: {}", appealId);
+                return;
+            }
+            
+            logger.info("Creating APPEAL_CREATED notifications for {} reviewers, appeal: {}", reviewerIds.size(), appealId);
+            
+            String title = "Có khiếu nại mới cần xử lý";
+            String message = String.format(
+                "Sinh viên %s (%s) đã nộp khiếu nại cho đánh giá học kỳ %s. Vui lòng xem xét.",
+                studentName, studentCode, semester
+            );
+            
+            int createdCount = 0;
+            // Create notification for each reviewer
+            for (Long reviewerId : reviewerIds) {
+                // Check if notification already exists
+                List<Notification> existing = notificationRepository
+                    .findByUserIdAndTypeAndRelatedTypeAndRelatedId(
+                        reviewerId,
+                        Notification.NotificationType.APPEAL_CREATED,
+                        "APPEAL",
+                        appealId
+                    );
+                
+                if (existing.isEmpty()) {
+                    createNotification(
+                        reviewerId,
+                        title,
+                        message,
+                        Notification.NotificationType.APPEAL_CREATED,
+                        "APPEAL",
+                        appealId
+                    );
+                    createdCount++;
+                }
+            }
+            logger.info("Created {} APPEAL_CREATED notifications for appeal: {}", createdCount, appealId);
+        } catch (Exception e) {
+            logger.error("Failed to create appeal creation notifications for appeal: {}, error: {}", appealId, e.getMessage(), e);
+        }
+    }
+    
+    /**
      * Convert entity to DTO
      */
     private NotificationDTO toDTO(Notification notification) {
@@ -539,6 +621,51 @@ public class NotificationService {
             notification.getCreatedAt(),
             notification.getReadAt()
         );
+    }
+    
+    /**
+     * Notify reviewers when appeal is created
+     */
+    public void notifyAppealCreated(Long appealId, String studentCode, String semester) {
+        // Note: We don't have a method to get all admins/faculty in AuthServiceClient
+        // So we'll skip notifying reviewers for now
+        // This can be implemented later when AuthServiceClient has the method
+        logger.info("Appeal {} created by student {}, notifications skipped (no getUserIdsByRoles method)", 
+            appealId, studentCode);
+    }
+    
+    /**
+     * Notify student when appeal is reviewed
+     */
+    public void notifyAppealReviewed(Long appealId, String studentCode, boolean approved) {
+        if (authServiceClient == null) {
+            logger.warn("AuthServiceClient not available, cannot send appeal notifications");
+            return;
+        }
+        
+        try {
+            // Get student user ID
+            AuthServiceClient.UserIdResponse response = 
+                authServiceClient.getUserIdByStudentCode(studentCode);
+            
+            if (response != null && response.isSuccess() && response.getData() != null) {
+                String title = approved ? "Khiếu nại được chấp nhận" : "Khiếu nại bị từ chối";
+                String message = approved 
+                    ? "Khiếu nại của bạn đã được xét duyệt và chấp nhận"
+                    : "Khiếu nại của bạn đã được xét duyệt nhưng bị từ chối";
+                
+                createNotification(
+                    response.getData(),
+                    title,
+                    message,
+                    Notification.NotificationType.APPEAL_REVIEWED,
+                    "APPEAL",
+                    appealId
+                );
+            }
+        } catch (Exception e) {
+            logger.error("Failed to notify appeal reviewed: {}", e.getMessage());
+        }
     }
 }
 
