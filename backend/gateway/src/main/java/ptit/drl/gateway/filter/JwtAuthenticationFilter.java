@@ -92,6 +92,8 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                path.startsWith("/api/students/hello") ||  // Test endpoint
                path.startsWith("/api/students/db-test") ||  // Test endpoint
                path.startsWith("/api/files/evidence/") ||  // Public file access (evidence files)
+               path.startsWith("/api/files/signatures/") ||  // Public file access (signature files)
+               path.startsWith("/api/class-users/") ||  // Public endpoint for class users (advisor, monitor, student)
                path.startsWith("/api/evaluation-periods/open") ||  // Public endpoint to check open period
                path.startsWith("/actuator/");
     }

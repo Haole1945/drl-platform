@@ -10,7 +10,7 @@ import type {
   CanAppealResponse,
 } from "@/types/appeal";
 
-const APPEALS_BASE = "/evaluation/appeals";
+const APPEALS_BASE = "/appeals";
 
 /**
  * Create a new appeal

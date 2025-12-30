@@ -8,10 +8,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { getPrimaryRoleDisplayName } from '@/lib/role-utils';
-import { User, Mail, Key, Calendar, Loader2 } from 'lucide-react';
+import { User, Mail, Key, Calendar, Loader2, PenTool, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { SignatureManager } from '@/components/SignatureManager';
+import { deleteSignature } from '@/lib/api/signature';
+import { useToast } from '@/hooks/use-toast';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080/api';
 
 /**
  * Convert date value (string or array) to Date object
@@ -46,9 +51,12 @@ import { getStudentByCode } from '@/lib/student';
 import type { Student } from '@/lib/student';
 
 export default function ProfilePage() {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, refreshUser } = useAuth();
   const [studentInfo, setStudentInfo] = useState<Student | null>(null);
   const [loadingStudent, setLoadingStudent] = useState(false);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [deletingSignature, setDeletingSignature] = useState(false);
+  const { toast } = useToast();
 
   // Load student info if user is a student
   useEffect(() => {
@@ -69,6 +77,37 @@ export default function ProfilePage() {
     };
     loadStudentInfo();
   }, [user]);
+
+  const handleSignatureUpdated = () => {
+    // Refresh user data to get updated signature
+    refreshUser();
+    // Reload page to ensure image is displayed correctly
+    window.location.reload();
+  };
+
+  const handleDeleteSignature = async () => {
+    if (!confirm('Bạn có chắc chắn muốn xóa chữ ký?')) {
+      return;
+    }
+
+    setDeletingSignature(true);
+    try {
+      await deleteSignature();
+      toast({
+        title: 'Thành công',
+        description: 'Chữ ký đã được xóa',
+      });
+      refreshUser();
+    } catch (error) {
+      toast({
+        title: 'Lỗi',
+        description: error instanceof Error ? error.message : 'Không thể xóa chữ ký',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingSignature(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -246,7 +285,7 @@ export default function ProfilePage() {
                   Quản lý mật khẩu và bảo mật tài khoản
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Mật khẩu</label>
                   <p className="text-sm text-muted-foreground mt-1">••••••••</p>
@@ -257,8 +296,82 @@ export default function ProfilePage() {
                     Đổi mật khẩu
                   </Button>
                 </Link>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setSignatureDialogOpen(true)}
+                >
+                  <PenTool className="h-4 w-4 mr-2" />
+                  Quản lý chữ ký
+                </Button>
               </CardContent>
             </Card>
+
+            {user.signatureImageUrl && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <PenTool className="h-5 w-5" />
+                    Chữ Ký Điện Tử
+                  </CardTitle>
+                  <CardDescription>
+                    Chữ ký của bạn sẽ được sử dụng khi duyệt đánh giá
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="border rounded-lg p-4 bg-gray-50 flex items-center justify-center">
+                    <img 
+                      src={`${API_BASE_URL}${user.signatureImageUrl}`}
+                      alt="Chữ ký" 
+                      className="max-h-24"
+                      onError={(e) => {
+                        console.error('Failed to load signature image:', user.signatureImageUrl);
+                        e.currentTarget.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  {user.signatureUploadedAt && (
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Tạo lúc</label>
+                      <p className="text-sm font-medium mt-1">
+                        {(() => {
+                          try {
+                            const date = Array.isArray(user.signatureUploadedAt)
+                              ? new Date(user.signatureUploadedAt[0], user.signatureUploadedAt[1] - 1, user.signatureUploadedAt[2], user.signatureUploadedAt[3] || 0, user.signatureUploadedAt[4] || 0)
+                              : new Date(user.signatureUploadedAt);
+                            return format(date, "dd/MM/yyyy 'lúc' HH:mm", { locale: vi });
+                          } catch {
+                            return 'N/A';
+                          }
+                        })()}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => setSignatureDialogOpen(true)}
+                    >
+                      Chỉnh sửa
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      className="flex-1"
+                      onClick={handleDeleteSignature}
+                      disabled={deletingSignature}
+                    >
+                      {deletingSignature ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 mr-2" />
+                      )}
+                      Xóa
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="md:col-span-2 lg:col-span-3">
               <CardHeader>
@@ -306,6 +419,12 @@ export default function ProfilePage() {
               </CardContent>
             </Card>
           </div>
+
+          <SignatureManager
+            open={signatureDialogOpen}
+            onOpenChange={setSignatureDialogOpen}
+            onSignatureUpdated={handleSignatureUpdated}
+          />
         </div>
       </DashboardLayout>
     </ProtectedRoute>

@@ -25,6 +25,10 @@ export interface User {
   enabled?: boolean; // Deprecated - use isActive instead
   createdAt?: string | number[]; // Can be string or array from LocalDateTime [year, month, day, hour, minute, second, nanosecond]
   updatedAt?: string | number[]; // Can be string or array from LocalDateTime [year, month, day, hour, minute, second, nanosecond]
+  // Signature fields
+  signatureImageUrl?: string;
+  signatureUploadedAt?: string | number[];
+  hasSignature?: boolean;
 }
 
 export interface LoginRequest {

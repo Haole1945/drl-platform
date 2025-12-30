@@ -1,6 +1,0 @@
-﻿                    }
-                  }
-                }
-              });
-              
-              if (Object.keys(initialClassMonitorScores).length > 0) {

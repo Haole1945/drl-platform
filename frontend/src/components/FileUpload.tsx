@@ -233,6 +233,7 @@ export function FileUpload({
             // Create FormData for each attempt (FormData cannot be reused after being sent)
             const formData = new FormData();
             formData.append('file', file);
+            // Always include evaluationId if available - this is crucial for AI scoring
             if (evaluationId) formData.append('evaluationId', evaluationId.toString());
             formData.append('criteriaId', criteriaId.toString());
             if (subCriteriaId) formData.append('subCriteriaId', subCriteriaId);

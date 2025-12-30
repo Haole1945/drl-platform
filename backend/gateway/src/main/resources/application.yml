@@ -17,8 +17,8 @@ spring:
         max-retries-on-same-service-instance: 1
     gateway:
       httpclient:
-        connect-timeout: 10000  # Increased from 5s to 10s for slower connections
-        response-timeout: 30000  # Increased from 10s to 30s for file uploads and slower services
+        connect-timeout: 10000 # Increased from 5s to 10s for slower connections
+        response-timeout: 30000 # Increased from 10s to 30s for file uploads and slower services
         pool:
           type: ELASTIC
           max-connections: 500
@@ -26,7 +26,28 @@ spring:
           evict-in-background: true
           evict-idle-timeout: 20s
       routes:
-       # AI Scoring Route (MUST be before evaluation-service route to avoid path conflicts)
+        # File upload route (evaluation-service) - MUST be before file serving route
+        - id: evaluation-files-upload
+          uri: lb://evaluation-service
+          predicates:
+            - Path=/api/files/upload, /api/files/{fileId}
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+        # File serving route for signatures (auth-service)
+        - id: auth-files
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/files/signatures/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+        # File serving route for evidence (evaluation-service)
+        - id: evaluation-files
+          uri: lb://evaluation-service
+          predicates:
+            - Path=/api/files/**
+          filters:
+            - RewritePath=/api/(?<segment>.*), /$\{segment}
+        # AI Scoring Route (MUST be before evaluation-service route to avoid path conflicts)
         - id: ai-scoring-service
           uri: lb://evaluation-service
           predicates:
@@ -37,10 +58,10 @@ spring:
         - id: auth-service
           uri: lb://auth-service
           predicates:
-            - Path=/api/auth/**
+            - Path=/api/auth/**,/api/class-users/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
-        
+
         # Student Service Route (using service discovery)
         - id: student-service
           uri: lb://student-service
@@ -48,15 +69,15 @@ spring:
             - Path=/api/students/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
-        
-         # Evaluation Service Route (using service discovery) - Must be last to avoid conflicts
+
+          # Evaluation Service Route (using service discovery) - Must be last to avoid conflicts
         - id: evaluation-service
           uri: lb://evaluation-service
           predicates:
-            - Path=/api/evaluations/**,/api/rubrics/**,/api/criteria/**,/api/files/**,/api/evaluation-periods/**,/api/test/**
+            - Path=/api/evaluations/**,/api/rubrics/**,/api/criteria/**,/api/files/**,/api/evaluation-periods/**,/api/appeals/**,/api/test/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
-        
+
         # Notifications Route (separate route for better path matching)
         - id: notifications-service
           uri: lb://evaluation-service
@@ -64,7 +85,7 @@ spring:
             - Path=/api/notifications/**
           filters:
             - RewritePath=/api/(?<segment>.*), /$\{segment}
-        
+
         # AI Validation Service Route
         - id: ai-validation-service
           uri: lb://ai-validation-service

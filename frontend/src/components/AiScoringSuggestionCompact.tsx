@@ -29,7 +29,17 @@ export function AiScoringSuggestionCompact({
   const [error, setError] = useState<string | null>(null);
 
   const handleGetSuggestion = async () => {
+    console.log('[AI-SCORING] Starting AI analysis...', {
+      criteriaId,
+      maxScore,
+      evidenceFileIds,
+      fileCount: evidenceFileIds.length,
+      hasSubCriteria: !!subCriteria,
+      subCriteriaCount: subCriteria?.length || 0
+    });
+    
     if (evidenceFileIds.length === 0) {
+      console.warn('[AI-SCORING] No evidence files');
       setError('Cần có minh chứng để AI phân tích');
       return;
     }
@@ -39,12 +49,15 @@ export function AiScoringSuggestionCompact({
     setSuggestion(null);
 
     try {
+      console.log('[AI-SCORING] Calling getScoringsuggestion...');
       const response = await getScoringsuggestion(
         { criteriaId, evidenceFileIds, maxScore, subCriteria },
         token
       );
+      console.log('[AI-SCORING] Got response:', response);
       setSuggestion(response);
     } catch (err: any) {
+      console.error('[AI-SCORING] Error:', err);
       setError(err.message || 'Lỗi khi gọi AI');
     } finally {
       setLoading(false);

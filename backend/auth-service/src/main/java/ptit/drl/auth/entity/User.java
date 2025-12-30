@@ -33,6 +33,16 @@ public class User extends BaseEntity {
     @Column(name = "class_code", length = 20)
     private String classCode; // Class code from student record (e.g., "D21DCCN01-N")
     
+    // Digital signature fields
+    @Column(name = "signature_image_url", length = 500)
+    private String signatureImageUrl;
+    
+    @Column(name = "signature_uploaded_at")
+    private java.time.LocalDateTime signatureUploadedAt;
+    
+    @Column(name = "signature_hash", length = 64)
+    private String signatureHash;
+    
     // Changed to LAZY - use @EntityGraph in repository for optimized loading
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -126,6 +136,30 @@ public class User extends BaseEntity {
     
     public void setRoles(Set<Role> roles) {
         this.roles = roles;
+    }
+    
+    public String getSignatureImageUrl() {
+        return signatureImageUrl;
+    }
+    
+    public void setSignatureImageUrl(String signatureImageUrl) {
+        this.signatureImageUrl = signatureImageUrl;
+    }
+    
+    public java.time.LocalDateTime getSignatureUploadedAt() {
+        return signatureUploadedAt;
+    }
+    
+    public void setSignatureUploadedAt(java.time.LocalDateTime signatureUploadedAt) {
+        this.signatureUploadedAt = signatureUploadedAt;
+    }
+    
+    public String getSignatureHash() {
+        return signatureHash;
+    }
+    
+    public void setSignatureHash(String signatureHash) {
+        this.signatureHash = signatureHash;
     }
 }
 

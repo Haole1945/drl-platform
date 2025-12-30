@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
@@ -11,13 +11,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { getEvaluationById, submitEvaluation, approveEvaluation, rejectEvaluation, getActiveRubric, getCriteriaByRubric, deleteEvaluation } from '@/lib/evaluation';
+import { getEvaluationById, submitEvaluation, approveEvaluation, rejectEvaluation, getActiveRubric, getCriteriaByRubric, deleteEvaluation, saveDraftScores } from '@/lib/evaluation';
 import { StatusBadge } from '@/components/StatusBadge';
 import { EvaluationHistory } from '@/components/EvaluationHistory';
 import { canApproveClassLevel, canApproveAdvisorLevel, canApproveFacultyLevel } from '@/lib/role-utils';
 import type { Evaluation, Rubric, Criteria, CriteriaWithSubCriteria,SubCriteria } from '@/types/evaluation';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Loader2, Send, Check, X, Edit, ExternalLink, Trash2, Sparkles, CheckCircle2, MessageSquare } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { getOpenPeriod , getAuthToken} from '@/lib/api';
 import { parseSubCriteria } from '@/lib/criteria-parser';
@@ -25,6 +25,17 @@ import { parseEvidence, getFileNameFromUrl } from '@/lib/evidence-parser';
 import { formatDateTime, formatDate as formatDateUtil } from '@/lib/date-utils';
 import { getScoringsuggestion } from '@/lib/api/ai-scoring';
 import { AppealButton } from '@/components/AppealButton';
+import { autoFillClassMonitorScores, autoFillAdvisorScores, getAutoFillMessage } from '@/lib/score-auto-fill';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Info } from 'lucide-react';
+import { useAutoFillScores } from '@/hooks/useAutoFillScores';
+import { useSaveDraftScores } from '@/hooks/useSaveDraftScores';
+import { ScoreAdjustmentDialog } from '@/components/ScoreAdjustmentDialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { useScoreAdjustments } from './hooks/useScoreAdjustments';
+import { SubCriteriaScoreInput } from './components/SubCriteriaScoreInput';
+import { handleApprovalWithAdjustments } from './handlers/approvalHandlers';
+
 
 import {
   Dialog,
@@ -54,10 +65,49 @@ export default function EvaluationDetailPage() {
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [autoFilledScores, setAutoFilledScores] = useState(false); // Track if scores were auto-filled
   const [openPeriod, setOpenPeriod] = useState<any>(null);
   const [canEditInPeriod, setCanEditInPeriod] = useState(false);
   const [criteriaFiles, setCriteriaFiles] = useState<Record<number, number[]>>({}); // criteriaId -> fileIds[]
   const [aiScores, setAiScores] = useState<Record<string, { score: number; maxScore: number; loading?: boolean }>>({}); // subCriteriaId -> { score, maxScore }
+  const [studentInfo, setStudentInfo] = useState<{ studentCode: string; fullName: string; className?: string } | null>(null);
+  
+  // Score adjustment notes - using custom hook
+  // Determine current user's role for adjustment notes
+  const currentUserRole = useMemo(() => {
+    if (!user) return null;
+    if (canApproveClassLevel(user)) return 'classMonitor';
+    if (canApproveAdvisorLevel(user)) return 'advisor';
+    return null;
+  }, [user]);
+  
+  const {
+    scoreAdjustmentNotes,
+    setScoreAdjustmentNotes,
+    adjustmentDialogOpen,
+    setAdjustmentDialogOpen,
+    currentAdjustment,
+    openAdjustmentDialog,
+    handleSaveAdjustmentNote,
+  } = useScoreAdjustments();
+  
+  // Wrapper functions that add role prefix
+  const getAdjustmentNote = (criterionId: number, subCriteriaId: string, role?: string) => {
+    const roleToUse = role || currentUserRole || 'classMonitor';
+    const key = `${roleToUse}_${criterionId}_${subCriteriaId}`;
+    return scoreAdjustmentNotes[key];
+  };
+  
+  const hasAdjustmentNote = (criterionId: number, subCriteriaId: string, role?: string) => {
+    const roleToUse = role || currentUserRole || 'classMonitor';
+    const key = `${roleToUse}_${criterionId}_${subCriteriaId}`;
+    const hasNote = !!scoreAdjustmentNotes[key];
+    console.log('[ICON-CHECK] hasAdjustmentNote:', { criterionId, subCriteriaId, role: roleToUse, key, hasNote, allKeys: Object.keys(scoreAdjustmentNotes) });
+    return hasNote;
+  };
+  
+  // Use ref to track if auto-fill has been attempted (to prevent infinite loop)
+  const autoFillAttempted = useRef(false);
 
   const evaluationId = params?.id ? parseInt(params.id as string) : null;
   const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8080/api';
@@ -78,14 +128,24 @@ export default function EvaluationDetailPage() {
       const subCriteriaWithData = subCriteria.map(sub => {
         const evidenceData = parsedEvidence.find(e => e.subCriteriaId === sub.id);
         // Get score from parsed evidence (if available)
-        // If no evidenceData found, check if score exists in parsedEvidence (for scores without evidence)
-        const score = evidenceData?.score ?? 
-          (parsedEvidence.find(e => e.subCriteriaId === sub.id && e.score !== undefined)?.score ?? 0);
+        // Check if score is explicitly defined (including 0)
+        const scoreEntry = parsedEvidence.find(e => e.subCriteriaId === sub.id);
+        const hasExplicitScore = scoreEntry !== undefined && scoreEntry.score !== undefined;
+        let score = hasExplicitScore ? scoreEntry.score! : 0;
+        
+        // FALLBACK: Only distribute if NO explicit score exists (not even 0) and we have a total score
+        if (!hasExplicitScore && detail?.score && detail.score > 0) {
+          const totalMaxPoints = subCriteria.reduce((sum, s) => sum + s.maxPoints, 0);
+          const ratio = totalMaxPoints > 0 ? sub.maxPoints / totalMaxPoints : 0;
+          score = Math.round(detail.score * ratio * 10) / 10;
+        }
+        
         // Convert fileUrls to string (comma-separated URLs)
         const evidenceString = (evidenceData?.fileUrls || []).join(', ');
+        
         return {
           ...sub,
-          score: score, // Use score from parsed evidence
+          score: score, // Use score from parsed evidence or distributed
           evidence: evidenceString, // Store as string to match SubCriteria type
         };
       });
@@ -109,6 +169,34 @@ export default function EvaluationDetailPage() {
     });
   }, [criteria, evaluation]);
 
+  // Auto-fill is now done on page load, not when dialog opens
+  // Keeping hooks for backward compatibility but they do nothing now
+  const { clearDraftScores } = useAutoFillScores({
+    evaluationId: evaluationId!,
+    showApproveDialog,
+    isClassMonitor: user ? canApproveClassLevel(user) : false,
+    isAdvisor: user ? canApproveAdvisorLevel(user) : false,
+    criteriaWithSubCriteria,
+    classMonitorSubCriteriaScores,
+    setClassMonitorSubCriteriaScores,
+    setAdvisorSubCriteriaScores,
+  });
+
+  // No longer saving to localStorage - scores are auto-filled on page load
+  // useSaveDraftScores({
+  //   evaluationId: evaluationId!,
+  //   scores: classMonitorSubCriteriaScores,
+  //   role: 'CLASS_MONITOR',
+  //   enabled: showApproveDialog && user ? canApproveClassLevel(user) : false,
+  // });
+
+  // useSaveDraftScores({
+  //   evaluationId: evaluationId!,
+  //   scores: advisorSubCriteriaScores,
+  //   role: 'ADVISOR',
+  //   enabled: showApproveDialog && user ? canApproveAdvisorLevel(user) : false,
+  // });
+
   // Use shared date utility for consistent formatting
   const formatDate = formatDateTime;
 
@@ -124,6 +212,16 @@ export default function EvaluationDetailPage() {
     // Fallback: calculate from criteria details
     return criteriaWithSubCriteria.reduce((sum, c) => sum + c.totalScore, 0);
   }, [criteriaWithSubCriteria, evaluation]);
+
+  // Helper function to check if score was adjusted BY USER (not auto-fill)
+  // Show icon ONLY when user manually changed the score
+  const isScoreAdjusted = (criterionId: number, subCriteriaId: string, originalScore: number, role: 'classMonitor' | 'advisor') => {
+    const key = `${criterionId}_${subCriteriaId}`;
+    
+    // ONLY check if there's an adjustment note
+    // Don't check score difference because auto-fill also changes scores
+    return hasAdjustmentNote(criterionId, subCriteriaId, role);
+  };
 
   useEffect(() => {
     if (!evaluationId) {
@@ -178,35 +276,73 @@ export default function EvaluationDetailPage() {
                   // Use note first (raw comment), fallback to evidence
                   const commentText = detail.note || detail.evidence;
                   
-                  console.log('[DEBUG] Loading scores for criteria', detail.criteriaId, {
-                    note: detail.note,
-                    evidence: detail.evidence,
-                    commentText: commentText?.substring(0, 100) + (commentText && commentText.length > 100 ? '...' : ''),
-                    commentTextIsJSON: commentText?.trim().startsWith('{'),
-                    classMonitorScore: detail.classMonitorScore,
-                    advisorScore: detail.advisorScore
-                  });
+                  console.log('[PARSE-JSON] Criteria', detail.criteriaId, 'comment:', commentText);
                   
                   if (commentText && commentText.trim().startsWith('{')) {
                     // It's JSON, parse it
                     try {
                       const parsed = JSON.parse(commentText);
-                      console.log('[DEBUG] Parsed JSON from comment:', parsed);
+                      console.log('[PARSE-JSON] Parsed successfully:', parsed);
+                      console.log('[PARSE-JSON] Keys:', Object.keys(parsed));
                       if (parsed.scores) {
                         parsedSubCriteriaScores = parsed.scores;
-                        console.log('[DEBUG] Found subCriteriaScores in JSON:', parsedSubCriteriaScores);
+                      }
+                      
+                      // Parse score adjustments if available - SEPARATE by role
+                      // Load class monitor adjustments - ALWAYS load for viewing mode
+                      if (parsed.classMonitorAdjustments) {
+                        const adjustments = parsed.classMonitorAdjustments;
+                        console.log('[ADJUSTMENT-LOAD] Loading class monitor adjustments:', adjustments);
+                        Object.entries(adjustments).forEach(([key, adjustment]: [string, any]) => {
+                          if (adjustment && typeof adjustment === 'object') {
+                            const fullKey = `classMonitor_${key}`;
+                            console.log('[ADJUSTMENT-LOAD] Setting adjustment:', fullKey, adjustment);
+                            setScoreAdjustmentNotes(prev => ({
+                              ...prev,
+                              [fullKey]: {
+                                originalScore: adjustment.originalScore || 0,
+                                newScore: adjustment.newScore || 0,
+                                reason: adjustment.reason || '',
+                                evidence: adjustment.evidence || '',
+                              }
+                            }));
+                          }
+                        });
                       } else {
-                        console.log('[DEBUG] No scores field in JSON, keys:', Object.keys(parsed));
+                        console.log('[ADJUSTMENT-LOAD] No class monitor adjustments found');
+                      }
+                      
+                      // Load advisor adjustments - ALWAYS load for viewing mode
+                      if (parsed.advisorAdjustments) {
+                        const adjustments = parsed.advisorAdjustments;
+                        console.log('[ADJUSTMENT-LOAD] Loading advisor adjustments:', adjustments);
+                        Object.entries(adjustments).forEach(([key, adjustment]: [string, any]) => {
+                          if (adjustment && typeof adjustment === 'object') {
+                            const fullKey = `advisor_${key}`;
+                            console.log('[ADJUSTMENT-LOAD] Setting adjustment:', fullKey, adjustment);
+                            setScoreAdjustmentNotes(prev => ({
+                              ...prev,
+                              [fullKey]: {
+                                originalScore: adjustment.originalScore || 0,
+                                newScore: adjustment.newScore || 0,
+                                reason: adjustment.reason || '',
+                                evidence: adjustment.evidence || '',
+                              }
+                            }));
+                          }
+                        });
+                      } else {
+                        console.log('[ADJUSTMENT-LOAD] No advisor adjustments found');
+                      }
+                      
+                      if (!parsed.classMonitorAdjustments && !parsed.advisorAdjustments) {
+                        // No adjustments found
                       }
                     } catch (e) {
-                      // JSON parse failed
-                      console.error('[DEBUG] Failed to parse JSON comment:', e instanceof Error ? e.message : String(e));
+                      // JSON parse failed - ignore
                     }
                   } else if (commentText) {
                     // Not JSON (evidence string), will fallback to distribution
-                    console.log('[DEBUG] Comment is not JSON (evidence string), will use fallback distribution');
-                  } else {
-                    console.log('[DEBUG] No comment text found for criteria', detail.criteriaId);
                   }
                   
                   // If we have saved sub-criteria scores in JSON, use them
@@ -250,16 +386,82 @@ export default function EvaluationDetailPage() {
               });
               
               if (Object.keys(initialClassMonitorScores).length > 0) {
-                console.log('[DEBUG] Setting classMonitorSubCriteriaScores:', initialClassMonitorScores);
                 setClassMonitorSubCriteriaScores(initialClassMonitorScores);
               } else {
-                console.log('[DEBUG] No class monitor scores to set');
+                // Auto-fill class monitor scores if user is class monitor and no scores exist
+                if (user && canApproveClassLevel(user) && evalData.status === 'SUBMITTED') {
+                  const autoFilledScores: Record<string, number> = {};
+                  
+                  // Loop through each criterion and auto-fill from self scores
+                  criteriaResponse.data.forEach((criterion: Criteria) => {
+                    const detail = evalData.details.find((d: any) => d.criteriaId === criterion.id);
+                    if (detail) {
+                      const subCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
+                      const parsedEvidence = detail.evidence ? parseEvidence(detail.evidence) : [];
+                      
+                      // Map sub-criteria with their scores
+                      const subCriteriaWithScores = subCriteria.map(sub => {
+                        const scoreEntry = parsedEvidence.find(e => e.subCriteriaId === sub.id);
+                        const score = scoreEntry?.score ?? 0;
+                        return { id: sub.id, score };
+                      });
+                      
+                      // Auto-fill scores for this criterion
+                      const criterionScores = autoFillClassMonitorScores(subCriteriaWithScores, criterion.id);
+                      Object.assign(autoFilledScores, criterionScores);
+                    }
+                  });
+                  
+                  if (Object.keys(autoFilledScores).length > 0) {
+                    setClassMonitorSubCriteriaScores(autoFilledScores);
+                    
+                    // Show toast notification
+                    toast({
+                      title: "Điểm đã được tự động điền",
+                      description: "Điểm lớp trưởng đã được tự động điền từ điểm tự chấm của sinh viên. Bạn có thể chỉnh sửa trước khi duyệt.",
+                      duration: 5000,
+                    });
+                  }
+                }
               }
               if (Object.keys(initialAdvisorScores).length > 0) {
-                console.log('[DEBUG] Setting advisorSubCriteriaScores:', initialAdvisorScores);
                 setAdvisorSubCriteriaScores(initialAdvisorScores);
               } else {
-                console.log('[DEBUG] No advisor scores to set');
+                // Auto-fill advisor scores if user is advisor and no scores exist
+                if (user && canApproveAdvisorLevel(user) && evalData.status === 'CLASS_APPROVED') {
+                  const autoFilledScores: Record<string, number> = {};
+                  
+                  // Loop through each criterion and auto-fill from average
+                  criteriaResponse.data.forEach((criterion: Criteria) => {
+                    const detail = evalData.details.find((d: any) => d.criteriaId === criterion.id);
+                    if (detail) {
+                      const subCriteria = parseSubCriteria(criterion.orderIndex, criterion.description || '');
+                      const parsedEvidence = detail.evidence ? parseEvidence(detail.evidence) : [];
+                      
+                      // Map sub-criteria with their scores
+                      const subCriteriaWithScores = subCriteria.map(sub => {
+                        const scoreEntry = parsedEvidence.find(e => e.subCriteriaId === sub.id);
+                        const score = scoreEntry?.score ?? 0;
+                        return { id: sub.id, score };
+                      });
+                      
+                      // Auto-fill scores for this criterion (using class monitor scores if available)
+                      const criterionScores = autoFillAdvisorScores(subCriteriaWithScores, criterion.id, initialClassMonitorScores);
+                      Object.assign(autoFilledScores, criterionScores);
+                    }
+                  });
+                  
+                  if (Object.keys(autoFilledScores).length > 0) {
+                    setAdvisorSubCriteriaScores(autoFilledScores);
+                    
+                    // Show toast notification
+                    toast({
+                      title: "Điểm đã được tự động điền",
+                      description: "Điểm cố vấn đã được tự động điền từ điểm lớp trưởng. Bạn có thể chỉnh sửa trước khi duyệt.",
+                      duration: 5000,
+                    });
+                  }
+                }
               }
             }
             
@@ -322,11 +524,15 @@ export default function EvaluationDetailPage() {
                       method: 'POST',
                       headers: {
                         'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
                       },
                     });
                     
                     if (syncResponse.ok) {
                       console.log('[AI Debug] Files synced successfully, fetching again');
+                      // Wait a moment for database to update
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      
                       // Fetch files again after sync
                       await Promise.all(
                         criteriaResponse.data.map(async (criterion: Criteria) => {
@@ -343,7 +549,7 @@ export default function EvaluationDetailPage() {
                                 const fileIds = data.data.map((f: any) => f.id).filter((id: any) => id != null);
                                 if (fileIds.length > 0) {
                                   filesMap[criterion.id] = fileIds;
-                                  console.log('[AI Debug] Found file IDs after sync:', fileIds);
+                                  console.log('[AI Debug] Found file IDs after sync for criterion', criterion.id, ':', fileIds);
                                 }
                               }
                             }
@@ -358,6 +564,58 @@ export default function EvaluationDetailPage() {
                     }
                   } catch (err) {
                     console.error('[AI Debug] Error syncing files:', err);
+                  }
+                }
+              }
+              
+              // If still no files found, try alternative approach: lookup files by evidence URLs
+              if (Object.keys(filesMap).length === 0 && evalData.details) {
+                console.log('[AI Debug] Still no files found, trying alternative lookup approach');
+                
+                for (const detail of evalData.details) {
+                  if (detail.evidence) {
+                    // Extract file names from evidence URLs
+                    const fileUrlPattern = /\/files\/evidence\/[^\/]+\/[^\/]+\/([^\s,]+)/g;
+                    const fileNames: string[] = [];
+                    let match;
+                    while ((match = fileUrlPattern.exec(detail.evidence)) !== null) {
+                      fileNames.push(match[1]);
+                    }
+                    
+                    if (fileNames.length > 0) {
+                      console.log('[AI Debug] Found file names in evidence for criteria', detail.criteriaId, ':', fileNames);
+                      
+                      try {
+                        // Use file lookup endpoint to find files by stored names
+                        const lookupUrl = `${API_BASE}/files/lookup`;
+                        const lookupResponse = await fetch(lookupUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            storedFileNames: fileNames,
+                            criteriaId: detail.criteriaId
+                          })
+                        });
+                        
+                        if (lookupResponse.ok) {
+                          const lookupData = await lookupResponse.json();
+                          if (lookupData.success && lookupData.data && Array.isArray(lookupData.data)) {
+                            const fileIds = lookupData.data.map((f: any) => f.id).filter((id: any) => id != null);
+                            if (fileIds.length > 0) {
+                              filesMap[detail.criteriaId] = fileIds;
+                              console.log('[AI Debug] Found file IDs via lookup for criteria', detail.criteriaId, ':', fileIds);
+                            }
+                          }
+                        } else {
+                          console.warn('[AI Debug] File lookup failed for criteria', detail.criteriaId);
+                        }
+                      } catch (err) {
+                        console.error('[AI Debug] Error in file lookup for criteria', detail.criteriaId, ':', err);
+                      }
+                    }
                   }
                 }
               }
@@ -444,30 +702,82 @@ export default function EvaluationDetailPage() {
     }
   }, [evaluation]);
 
+  // Load student info when evaluation is loaded
+  useEffect(() => {
+    const loadStudentInfo = async () => {
+      if (!evaluation?.studentCode) return;
+      
+      try {
+        const { getStudentByCode } = await import('@/lib/student');
+        const response = await getStudentByCode(evaluation.studentCode);
+        if (response.success && response.data) {
+          setStudentInfo({
+            studentCode: response.data.studentCode,
+            fullName: response.data.fullName,
+            className: response.data.className || response.data.classCode
+          });
+        }
+      } catch (error) {
+        console.error('[STUDENT-INFO] Failed to load student info:', error);
+        // Fallback to evaluation data
+        setStudentInfo({
+          studentCode: evaluation.studentCode,
+          fullName: evaluation.studentName || evaluation.studentCode,
+          className: evaluation.className
+        });
+      }
+    };
+    
+    loadStudentInfo();
+  }, [evaluation]);
+
   // Auto-run AI analysis when files are loaded
   useEffect(() => {
     const runAiAnalysis = async () => {
+      console.log('[AI-AUTO] Checking if should run AI analysis...', {
+        hasCriteria: !!criteriaWithSubCriteria.length,
+        hasFiles: !!Object.keys(criteriaFiles).length,
+        hasEvaluation: !!evaluation,
+        criteriaCount: criteriaWithSubCriteria.length,
+        filesCount: Object.keys(criteriaFiles).length
+      });
+      
       if (!criteriaWithSubCriteria.length || !Object.keys(criteriaFiles).length || !evaluation) {
+        console.log('[AI-AUTO] Skipping AI analysis - missing data');
         return;
       }
 
       const token = getAuthToken();
       if (!token) {
+        console.warn('[AI-AUTO] No auth token - skipping AI analysis');
         return;
       }
+
+      console.log('[AI-AUTO] Starting AI analysis for', criteriaWithSubCriteria.length, 'criteria');
 
       // Run AI analysis for each criterion that has files
       for (const criterion of criteriaWithSubCriteria) {
         const fileIds = criteriaFiles[criterion.id] || [];
+        console.log(`[AI-AUTO] Criterion ${criterion.id}:`, {
+          fileCount: fileIds.length,
+          subCriteriaCount: criterion.subCriteria.length
+        });
+        
         if (fileIds.length === 0) {
+          console.log(`[AI-AUTO] Skipping criterion ${criterion.id} - no files`);
           continue;
         }
 
         // Check if this criterion has sub-criteria with evidence
         const hasSubCriteriaWithEvidence = criterion.subCriteria.some(sub => sub.evidence && sub.evidence.length > 0);
+        console.log(`[AI-AUTO] Criterion ${criterion.id} has sub-criteria with evidence:`, hasSubCriteriaWithEvidence);
+        
         if (!hasSubCriteriaWithEvidence) {
+          console.log(`[AI-AUTO] Skipping criterion ${criterion.id} - no sub-criteria with evidence`);
           continue;
         }
+
+        console.log(`[AI-AUTO] Running AI analysis for criterion ${criterion.id}...`);
 
         // Mark sub-criteria as loading
         const loadingScores: Record<string, { score: number; maxScore: number; loading: boolean }> = {};
@@ -479,6 +789,15 @@ export default function EvaluationDetailPage() {
         setAiScores(prev => ({ ...prev, ...loadingScores }));
 
         try {
+          // Use loaded student info (from state) or fallback to evaluation data
+          const studentInfoForAI = studentInfo || (evaluation ? {
+            studentCode: evaluation.studentCode,
+            fullName: evaluation.studentName || evaluation.studentCode,
+            className: evaluation.className
+          } : undefined);
+          
+          console.log('[AI-AUTO] Student info for AI:', studentInfoForAI);
+          
           const response = await getScoringsuggestion(
             {
               criteriaId: criterion.id,
@@ -489,7 +808,8 @@ export default function EvaluationDetailPage() {
                 name: sub.name,
                 description: sub.description,
                 maxPoints: sub.maxPoints
-              }))
+              })),
+              studentInfo: studentInfoForAI
             },
             token
           );
@@ -530,8 +850,7 @@ export default function EvaluationDetailPage() {
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [criteriaWithSubCriteria, criteriaFiles, evaluation]);
-
+  }, [criteriaWithSubCriteria, criteriaFiles, evaluation, studentInfo]);
   const handleSubmit = async () => {
     if (!evaluationId) return;
 
@@ -669,12 +988,51 @@ export default function EvaluationDetailPage() {
       const subCriteriaScoresToSend = isClassMonitor ? classMonitorSubCriteriaScores : 
                                       isAdvisor ? advisorSubCriteriaScores : {};
       
+      // Prepare score adjustments with full info (originalScore, newScore, reason, evidence)
+      const scoreAdjustmentsToSend: Record<string, { originalScore: number; newScore: number; reason: string; evidence: string }> = {};
+      Object.entries(scoreAdjustmentNotes).forEach(([key, note]) => {
+        // key format: "role_criterionId_subCriteriaId" (e.g., "classMonitor_1_1.1")
+        // Remove role prefix to get "criterionId_subCriteriaId"
+        const parts = key.split('_');
+        if (parts.length < 3) return; // Invalid key format
+        
+        const role = parts[0]; // "classMonitor" or "advisor"
+        const criterionIdStr = parts[1]; // "1"
+        const subCriteriaId = parts.slice(2).join('_'); // "1.1" (rejoin in case subCriteriaId contains _)
+        
+        // Only include adjustments for current role
+        const currentRole = isClassMonitor ? 'classMonitor' : isAdvisor ? 'advisor' : null;
+        if (role !== currentRole) return;
+        
+        const criterionId = Number(criterionIdStr);
+        const keyWithoutRole = `${criterionId}_${subCriteriaId}`; // "1_1.1"
+        
+        // Find the criterion and sub-criteria
+        const criterion = criteriaWithSubCriteria.find(c => c.id === criterionId);
+        if (criterion) {
+          const subCriteria = criterion.subCriteria.find(s => s.id === subCriteriaId);
+          if (subCriteria) {
+            const originalScore = subCriteria.score || 0;
+            const newScore = subCriteriaScoresToSend[keyWithoutRole] || 0;
+            
+            scoreAdjustmentsToSend[keyWithoutRole] = {
+              originalScore,
+              newScore,
+              reason: note.reason || '',
+              evidence: note.evidence || '',
+            };
+          }
+        }
+      });
+      
       console.log('[DEBUG] Scores to send to backend:', {
         scoresToSend,
         scoresToSendKeys: Object.keys(scoresToSend),
         subCriteriaScoresToSend,
         subCriteriaScoresToSendKeys: Object.keys(subCriteriaScoresToSend),
         subCriteriaScoresToSendCount: Object.keys(subCriteriaScoresToSend).length,
+        scoreAdjustmentsToSend,
+        scoreAdjustmentsCount: Object.keys(scoreAdjustmentsToSend).length,
         isClassMonitor,
         isAdvisor,
         evaluationId,
@@ -685,11 +1043,15 @@ export default function EvaluationDetailPage() {
         evaluationId, 
         approvalComment || undefined,
         Object.keys(scoresToSend).length > 0 ? scoresToSend : undefined,
-        Object.keys(subCriteriaScoresToSend).length > 0 ? subCriteriaScoresToSend : undefined
+        Object.keys(subCriteriaScoresToSend).length > 0 ? subCriteriaScoresToSend : undefined,
+        Object.keys(scoreAdjustmentsToSend).length > 0 ? scoreAdjustmentsToSend : undefined
       );
       
       console.log('[DEBUG] Approval response:', response);
       if (response.success) {
+        // Clear localStorage after successful approval
+        clearDraftScores();
+        
         // Reload evaluation to ensure we have the latest status from database
         const reloadResponse = await getEvaluationById(evaluationId);
         if (reloadResponse.success && reloadResponse.data) {
@@ -701,17 +1063,14 @@ export default function EvaluationDetailPage() {
         
         toast({
           title: "Thành công",
-          description: "Đánh giá đã được duyệt.",
+          description: "Đánh giá đã được duyệt. Bạn có thể xem lại ghi chú điều chỉnh bằng cách nhấn vào icon.",
         });
         setShowApproveDialog(false);
         setApprovalComment('');
         setApprovalScores({}); // Reset approval scores (criteria totals)
         // DON'T reset subCriteriaScores - keep them so they display correctly after approval
         // The scores will be reloaded from database when evaluation is reloaded
-        // Redirect to approvals page after successful approval
-        setTimeout(() => {
-          router.push('/approvals');
-        }, 1000);
+        // Stay on the page so user can view adjustment notes
       }
     } catch (error: any) {
       toast({
@@ -1127,6 +1486,19 @@ export default function EvaluationDetailPage() {
                             const isAdvisorScoring = evaluation.status === 'CLASS_APPROVED' && canApproveAdvisorLevel(user);
                             const isFacultyScoring = evaluation.status === 'ADVISOR_APPROVED' && canApproveFacultyLevel(user);
                             
+                            // Debug log
+                            if (sub.id === '1.1') {
+                              console.log('[DEBUG] Scoring mode check:', {
+                                evaluationStatus: evaluation.status,
+                                userRoles: user?.roles,
+                                canApproveClassLevel: canApproveClassLevel(user),
+                                canApproveAdvisorLevel: canApproveAdvisorLevel(user),
+                                isClassMonitorScoring,
+                                isAdvisorScoring,
+                                isFacultyScoring,
+                              });
+                            }
+                            
                             // Get editable score for this sub-criteria (if user is editing)
                             // Use a key that includes criteriaId to avoid conflicts between different criteria
                             const subScoreKey = `${criterion.id}_${sub.id}`;
@@ -1298,42 +1670,206 @@ export default function EvaluationDetailPage() {
                                 </TableCell>
                                 <TableCell className={`text-center ${isClassMonitorScoring ? 'bg-yellow-100 dark:bg-yellow-900/30' : ''}`}>
                                   {isClassMonitorScoring ? (
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max={sub.maxPoints}
-                                      step="0.1"
-                                      value={displayedClassMonitorScore ?? 0}
-                                      onChange={(e) => {
-                                        const value = parseFloat(e.target.value) || 0;
-                                        handleClassMonitorScoreChange(Math.min(Math.max(0, value), sub.maxPoints));
-                                      }}
-                                      className="w-20 h-8 text-center text-sm font-semibold bg-white dark:bg-gray-800"
-                                    />
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max={sub.maxPoints}
+                                        step="0.1"
+                                        value={displayedClassMonitorScore ?? 0}
+                                        onChange={(e) => {
+                                          const value = parseFloat(e.target.value) || 0;
+                                          handleClassMonitorScoreChange(Math.min(Math.max(0, value), sub.maxPoints));
+                                        }}
+                                        onBlur={(e) => {
+                                          const newScore = parseFloat(e.target.value) || 0;
+                                          const key = `${criterion.id}_${sub.id}`;
+                                          const originalScore = sub.score || 0;
+                                          
+                                          // Open dialog if score changed (regardless of note)
+                                          if (newScore !== originalScore) {
+                                            openAdjustmentDialog(criterion.id, sub, newScore);
+                                          }
+                                        }}
+                                        className="w-20 h-8 text-center text-sm font-semibold bg-white dark:bg-gray-800"
+                                      />
+                                      {hasAdjustmentNote(criterion.id, sub.id, 'classMonitor') && (
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0"
+                                            >
+                                              <MessageSquare className={`h-4 w-4 ${hasAdjustmentNote(criterion.id, sub.id, 'classMonitor') ? 'text-blue-600' : 'text-gray-400'}`} />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80">
+                                            <div className="space-y-2">
+                                              <h4 className="font-medium text-sm">Ghi chú điều chỉnh</h4>
+                                              {hasAdjustmentNote(criterion.id, sub.id, 'classMonitor') ? (
+                                                <div className="text-sm space-y-1">
+                                                  <div>
+                                                    <span className="font-medium">Lý do:</span>
+                                                    <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'classMonitor')?.reason || 'Không có'}</p>
+                                                  </div>
+                                                  <div>
+                                                    <span className="font-medium">Minh chứng:</span>
+                                                    <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'classMonitor')?.evidence || 'Không có'}</p>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <p className="text-sm text-muted-foreground">Chưa có ghi chú</p>
+                                              )}
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="w-full"
+                                                onClick={() => openAdjustmentDialog(criterion.id, sub, displayedClassMonitorScore || 0)}
+                                              >
+                                                {hasAdjustmentNote(criterion.id, sub.id, 'classMonitor') ? 'Chỉnh sửa' : 'Thêm ghi chú'}
+                                              </Button>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      )}
+                                    </div>
                                   ) : (
-                                    <span className="font-semibold text-yellow-700 dark:text-yellow-400">
-                                      {displayedClassMonitorScore !== null && displayedClassMonitorScore !== undefined ? displayedClassMonitorScore : 0}
-                                    </span>
+                                    <div className="flex items-center justify-center gap-2">
+                                      <span className="font-semibold text-yellow-700 dark:text-yellow-400">
+                                        {displayedClassMonitorScore !== null && displayedClassMonitorScore !== undefined ? displayedClassMonitorScore : 0}
+                                      </span>
+                                      {hasAdjustmentNote(criterion.id, sub.id, 'classMonitor') && (
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0"
+                                            >
+                                              <MessageSquare className="h-4 w-4 text-blue-600" />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80">
+                                            <div className="space-y-2">
+                                              <h4 className="font-medium text-sm">Ghi chú điều chỉnh (Lớp trưởng)</h4>
+                                              <div className="text-sm space-y-1">
+                                                <div>
+                                                  <span className="font-medium">Lý do:</span>
+                                                  <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'classMonitor')?.reason || 'Không có'}</p>
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Minh chứng:</span>
+                                                  <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'classMonitor')?.evidence || 'Không có'}</p>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      )}
+                                    </div>
                                   )}
                                 </TableCell>
                                 <TableCell className={`text-center ${isAdvisorScoring ? 'bg-green-100 dark:bg-green-900/30' : ''}`}>
                                   {isAdvisorScoring ? (
-                                    <Input
-                                      type="number"
-                                      min="0"
-                                      max={sub.maxPoints}
-                                      step="0.1"
-                                      value={displayedAdvisorScore ?? 0}
-                                      onChange={(e) => {
-                                        const value = parseFloat(e.target.value) || 0;
-                                        handleAdvisorScoreChange(Math.min(Math.max(0, value), sub.maxPoints));
-                                      }}
-                                      className="w-20 h-8 text-center text-sm font-semibold bg-white dark:bg-gray-800"
-                                    />
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Input
+                                        type="number"
+                                        min="0"
+                                        max={sub.maxPoints}
+                                        step="0.1"
+                                        value={displayedAdvisorScore ?? 0}
+                                        onChange={(e) => {
+                                          const value = parseFloat(e.target.value) || 0;
+                                          handleAdvisorScoreChange(Math.min(Math.max(0, value), sub.maxPoints));
+                                        }}
+                                        onBlur={(e) => {
+                                          const newScore = parseFloat(e.target.value) || 0;
+                                          const key = `${criterion.id}_${sub.id}`;
+                                          const originalScore = sub.score || 0;
+                                          
+                                          // Open dialog if score changed (regardless of note)
+                                          if (newScore !== originalScore) {
+                                            openAdjustmentDialog(criterion.id, sub, newScore);
+                                          }
+                                        }}
+                                        className="w-20 h-8 text-center text-sm font-semibold bg-white dark:bg-gray-800"
+                                      />
+                                      {hasAdjustmentNote(criterion.id, sub.id, 'advisor') && (
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0"
+                                            >
+                                              <MessageSquare className={`h-4 w-4 ${hasAdjustmentNote(criterion.id, sub.id, 'advisor') ? 'text-blue-600' : 'text-gray-400'}`} />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80">
+                                            <div className="space-y-2">
+                                              <h4 className="font-medium text-sm">Ghi chú điều chỉnh</h4>
+                                              {hasAdjustmentNote(criterion.id, sub.id, 'advisor') ? (
+                                                <div className="text-sm space-y-1">
+                                                  <div>
+                                                    <span className="font-medium">Lý do:</span>
+                                                    <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'advisor')?.reason || 'Không có'}</p>
+                                                  </div>
+                                                  <div>
+                                                    <span className="font-medium">Minh chứng:</span>
+                                                    <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'advisor')?.evidence || 'Không có'}</p>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <p className="text-sm text-muted-foreground">Chưa có ghi chú</p>
+                                              )}
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                className="w-full"
+                                                onClick={() => openAdjustmentDialog(criterion.id, sub, displayedAdvisorScore || 0)}
+                                              >
+                                                {hasAdjustmentNote(criterion.id, sub.id, 'advisor') ? 'Chỉnh sửa' : 'Thêm ghi chú'}
+                                              </Button>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      )}
+                                    </div>
                                   ) : (
-                                    <span className="font-semibold text-green-700 dark:text-green-400">
-                                      {displayedAdvisorScore !== null && displayedAdvisorScore !== undefined ? displayedAdvisorScore : 0}
-                                    </span>
+                                    <div className="flex items-center justify-center gap-2">
+                                      <span className="font-semibold text-green-700 dark:text-green-400">
+                                        {displayedAdvisorScore !== null && displayedAdvisorScore !== undefined ? displayedAdvisorScore : 0}
+                                      </span>
+                                      {hasAdjustmentNote(criterion.id, sub.id, 'advisor') && (
+                                        <Popover>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-6 w-6 p-0"
+                                            >
+                                              <MessageSquare className="h-4 w-4 text-blue-600" />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80">
+                                            <div className="space-y-2">
+                                              <h4 className="font-medium text-sm">Ghi chú điều chỉnh (Cố vấn)</h4>
+                                              <div className="text-sm space-y-1">
+                                                <div>
+                                                  <span className="font-medium">Lý do:</span>
+                                                  <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'advisor')?.reason || 'Không có'}</p>
+                                                </div>
+                                                <div>
+                                                  <span className="font-medium">Minh chứng:</span>
+                                                  <p className="text-muted-foreground">{getAdjustmentNote(criterion.id, sub.id, 'advisor')?.evidence || 'Không có'}</p>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          </PopoverContent>
+                                        </Popover>
+                                      )}
+                                    </div>
                                   )}
                                 </TableCell>
                                 <TableCell>
@@ -1535,6 +2071,7 @@ export default function EvaluationDetailPage() {
                     setApprovalScores({});
                     // setSubCriteriaScores({}); // Keep sub-criteria scores for display
                     setApprovalComment('');
+                    setAutoFilledScores(false); // Reset auto-fill flag
                   }
                 }}>
                   <DialogTrigger asChild>
@@ -1551,6 +2088,16 @@ export default function EvaluationDetailPage() {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
+                      {autoFilledScores && (
+                        <Alert>
+                          <Info className="h-4 w-4" />
+                          <AlertDescription>
+                            {getAutoFillMessage(
+                              canApproveClassLevel(user) && evaluation?.status === 'SUBMITTED'
+                            )}
+                          </AlertDescription>
+                        </Alert>
+                      )}
                       <div>
                         <Label htmlFor="approval-comment">Ghi chú (tùy chọn)</Label>
                         <Textarea
@@ -1569,6 +2116,7 @@ export default function EvaluationDetailPage() {
                         // Don't reset subCriteriaScores when canceling - keep user's input
                         // setSubCriteriaScores({});
                         setApprovalComment('');
+                        setAutoFilledScores(false); // Reset auto-fill flag
                       }}>
                         Hủy
                       </Button>
@@ -1635,6 +2183,26 @@ export default function EvaluationDetailPage() {
           </div>
         </div>
       </DashboardLayout>
+      
+      {/* Score Adjustment Dialog */}
+      {currentAdjustment && (
+        <ScoreAdjustmentDialog
+          open={adjustmentDialogOpen}
+          onOpenChange={setAdjustmentDialogOpen}
+          criterionId={currentAdjustment.criterionId}
+          subCriteriaId={currentAdjustment.subCriteria.id}
+          subCriteriaName={currentAdjustment.subCriteria.name}
+          originalScore={currentAdjustment.subCriteria.score}
+          newScore={currentAdjustment.currentScore}
+          existingReason={getAdjustmentNote(currentAdjustment.criterionId, currentAdjustment.subCriteria.id, currentUserRole || 'classMonitor')?.reason}
+          existingEvidence={getAdjustmentNote(currentAdjustment.criterionId, currentAdjustment.subCriteria.id, currentUserRole || 'classMonitor')?.evidence}
+          onSave={(reason, evidence) => {
+            const role = currentUserRole || 'classMonitor';
+            handleSaveAdjustmentNote(reason, evidence, role);
+            setAdjustmentDialogOpen(false);
+          }}
+        />
+      )}
     </ProtectedRoute>
   );
 }

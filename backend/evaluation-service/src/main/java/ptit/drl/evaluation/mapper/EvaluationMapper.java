@@ -100,18 +100,42 @@ public class EvaluationMapper {
         // Check if comment is JSON (contains scores)
         String evidenceForResponse = null;
         if (comment != null && comment.trim().startsWith("{")) {
-            // It's JSON, try to extract evidence field
+            // It's JSON, try to extract evidence field and reconstruct SCORES format
             try {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 java.util.Map<String, Object> commentData = mapper.readValue(comment, java.util.Map.class);
-                if (commentData.containsKey("evidence")) {
-                    evidenceForResponse = (String) commentData.get("evidence");
+                
+                // Extract evidence string
+                String evidenceString = commentData.containsKey("evidence") ? (String) commentData.get("evidence") : "";
+                
+                // Extract self sub-criteria scores and reconstruct SCORES format
+                if (commentData.containsKey("scores")) {
+                    java.util.Map<String, Object> scoresData = (java.util.Map<String, Object>) commentData.get("scores");
+                    if (scoresData.containsKey("selfSubCriteria")) {
+                        java.util.Map<String, Object> selfScores = (java.util.Map<String, Object>) scoresData.get("selfSubCriteria");
+                        if (!selfScores.isEmpty()) {
+                            // Reconstruct SCORES:1.1=3,1.2=10 format
+                            StringBuilder scoresBuilder = new StringBuilder("SCORES:");
+                            boolean first = true;
+                            for (java.util.Map.Entry<String, Object> entry : selfScores.entrySet()) {
+                                if (!first) scoresBuilder.append(",");
+                                scoresBuilder.append(entry.getKey()).append("=").append(entry.getValue());
+                                first = false;
+                            }
+                            evidenceForResponse = scoresBuilder.toString() + "|EVIDENCE:" + evidenceString;
+                            System.out.println("[MAPPER-DEBUG] Reconstructed evidence for criteria " + detail.getCriteriaId() + ": " + evidenceForResponse);
+                        } else {
+                            evidenceForResponse = evidenceString;
+                        }
+                    } else {
+                        evidenceForResponse = evidenceString;
+                    }
                 } else {
-                    // No evidence in JSON, set empty
-                    evidenceForResponse = "";
+                    evidenceForResponse = evidenceString;
                 }
             } catch (Exception e) {
                 // Failed to parse JSON, treat as evidence string
+                System.out.println("[MAPPER-DEBUG] Failed to parse JSON comment: " + e.getMessage());
                 evidenceForResponse = comment;
             }
         } else {
@@ -123,6 +147,7 @@ public class EvaluationMapper {
             }
         }
         
+        System.out.println("[MAPPER-DEBUG] Final evidence for criteria " + detail.getCriteriaId() + ": " + evidenceForResponse);
         dto.setEvidence(evidenceForResponse);
         dto.setNote(comment); // Keep note as original comment (JSON or evidence string)
         
@@ -209,31 +234,61 @@ public class EvaluationMapper {
         
         detail.setScore(request.getScore());
         
-        // Store evidence directly - use exactly what frontend sends
-        // Frontend sends: "SCORES:1.1=3,1.2=10|EVIDENCE:1.1. Name: /files/..."
+        // Parse evidence to extract sub-criteria scores and store as JSON
         String evidence = request.getEvidence();
         String comment = "";
         
-        // Use evidence directly if provided (frontend already formats it correctly)
-        // Remove "Evidence: " prefix if present (from old data or legacy format)
-        if (evidence != null && !evidence.isEmpty()) {
-            // Remove prefix if present (case-insensitive check)
-            String trimmed = evidence.trim();
-            if (trimmed.startsWith("Evidence: ")) {
-                trimmed = trimmed.substring("Evidence: ".length());
-            } else if (trimmed.startsWith("evidence: ")) {
-                trimmed = trimmed.substring("evidence: ".length());
+        // Check if evidence contains SCORES format: "SCORES:1.1=3,1.2=10|EVIDENCE:..."
+        if (evidence != null && evidence.contains("SCORES:")) {
+            try {
+                // Parse SCORES section
+                String[] parts = evidence.split("\\|EVIDENCE:");
+                String scoresSection = parts[0].replace("SCORES:", "");
+                String evidenceSection = parts.length > 1 ? parts[1] : "";
+                
+                // Parse individual scores: "1.1=3,1.2=10"
+                java.util.Map<String, Double> selfSubCriteria = new java.util.HashMap<>();
+                if (!scoresSection.isEmpty()) {
+                    String[] scorePairs = scoresSection.split(",");
+                    for (String pair : scorePairs) {
+                        String[] keyValue = pair.split("=");
+                        if (keyValue.length == 2) {
+                            try {
+                                selfSubCriteria.put(keyValue[0].trim(), Double.parseDouble(keyValue[1].trim()));
+                            } catch (NumberFormatException e) {
+                                // Skip invalid score
+                            }
+                        }
+                    }
+                }
+                
+                // Create JSON structure
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                java.util.Map<String, Object> commentData = new java.util.HashMap<>();
+                java.util.Map<String, Object> scores = new java.util.HashMap<>();
+                scores.put("selfSubCriteria", selfSubCriteria);
+                commentData.put("scores", scores);
+                commentData.put("evidence", evidenceSection);
+                
+                comment = mapper.writeValueAsString(commentData);
+            } catch (Exception e) {
+                // If parsing fails, store as-is
+                comment = evidence;
             }
-            comment = trimmed;
+        } else if (evidence != null && !evidence.isEmpty()) {
+            // No SCORES format, store as-is
+            comment = evidence;
         }
         
         // Add note if provided
         if (request.getNote() != null && !request.getNote().isEmpty()) {
-            if (!comment.isEmpty()) comment += " | ";
-            comment += "Note: " + request.getNote();
+            if (!comment.isEmpty() && !comment.startsWith("{")) {
+                comment += " | Note: " + request.getNote();
+            }
+            // If comment is JSON, note is ignored (scores take precedence)
         }
         
-        // Set comment (which contains the evidence) - NO PREFIX ADDED
+        // Set comment (which contains the evidence and scores in JSON format)
         detail.setComment(comment.isEmpty() ? null : comment);
         
         return detail;

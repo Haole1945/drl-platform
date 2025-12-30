@@ -40,6 +40,10 @@ public class SecurityConfig {
                 .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/logout", "/auth/request-password").permitAll()
                 // /auth/me and /auth/change-password require token but we validate it in controller, so permit all here
                 .requestMatchers("/auth/me", "/auth/change-password").permitAll()
+                // File serving endpoints (public access for signature images)
+                .requestMatchers("/files/**").permitAll()
+                // Class users endpoints (public access for getting advisor/monitor info)
+                .requestMatchers("/class-users/**").permitAll()
                 // Actuator endpoints
                 .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                 // Swagger/OpenAPI endpoints

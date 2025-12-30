@@ -119,7 +119,6 @@ export function AppealButton({
         open={showDialog}
         onOpenChange={setShowDialog}
         evaluationId={evaluationId}
-        criteria={criteria}
         onSuccess={() => {
           setShowDialog(false);
           if (onAppealCreated) {

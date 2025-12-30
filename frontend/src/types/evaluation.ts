@@ -106,9 +106,17 @@ export interface UpdateEvaluationRequest {
   details: EvaluationDetail[];
 }
 
+export interface ScoreAdjustment {
+  originalScore: number;
+  newScore: number;
+  reason: string;
+  evidence: string;
+}
+
 export interface ApprovalRequest {
   comment?: string;
   scores?: Record<number, number>; // Map of criteriaId -> score (for CLASS_MONITOR and ADVISOR)
+  scoreAdjustments?: Record<string, ScoreAdjustment>; // Map of "criteriaId_subCriteriaId" -> adjustment note
 }
 
 export interface RejectionRequest {

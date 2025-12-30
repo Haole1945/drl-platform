@@ -15,6 +15,11 @@ export interface AiScoringRequest {
   evidenceFileIds: number[];
   evaluationId?: number;
   maxScore?: number;
+  studentInfo?: { // NEW: Thông tin sinh viên để AI đối chiếu
+    studentCode: string;
+    fullName: string;
+    className?: string;
+  };
 }
 
 export interface SubCriteriaScore {

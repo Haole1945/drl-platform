@@ -3,7 +3,7 @@
 
 -- Delete user_role associations for UNION_REPRESENTATIVE
 DELETE FROM user_roles 
-WHERE role_id = 'UNION_REPRESENTATIVE';
+WHERE role_name = 'UNION_REPRESENTATIVE';
 
 -- Delete UNION_REPRESENTATIVE role
 DELETE FROM roles 

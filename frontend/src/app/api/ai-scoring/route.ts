@@ -15,7 +15,8 @@ export async function POST(request: NextRequest) {
       evidenceFileIds, 
       evaluationId,
       maxScore: requestMaxScore,
-      token: clientToken // Token from client for backend API calls
+      token: clientToken, // Token from client for backend API calls
+      studentInfo // NEW: Student info for verification {studentCode, fullName, className}
     } = body;
     
     const fileCount = evidenceFileIds?.length || 0;
@@ -248,6 +249,17 @@ Trả lời ngắn gọn, súc tích bằng tiếng Việt.`;
           text: `Bạn đang xem minh chứng THỰC SỰ cho các sub-criteria sau (CHỈ các sub-criteria có file):
 
 ${subCriteriaList}
+
+${studentInfo ? `
+THÔNG TIN SINH VIÊN (để đối chiếu):
+- Mã sinh viên: ${studentInfo.studentCode}
+- Họ tên: ${studentInfo.fullName}
+- Lớp: ${studentInfo.className || 'N/A'}
+
+⚠️ QUAN TRỌNG: Kiểm tra xem tên/mã sinh viên trong minh chứng có KHỚP với thông tin trên không!
+- Nếu minh chứng có tên/mã sinh viên KHÁC → Có thể là fake/mượn của người khác → Giảm điểm mạnh
+- Nếu không có tên/mã sinh viên trong minh chứng → Vẫn chấp nhận nhưng giảm confidence
+` : ''}
 
 YÊU CẦU PHÂN TÍCH NGHIÊM NGẶT:
 1. Với MỖI sub-criteria CÓ FILE:

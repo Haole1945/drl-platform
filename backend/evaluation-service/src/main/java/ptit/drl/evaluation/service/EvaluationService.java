@@ -541,7 +541,7 @@ public class EvaluationService {
      * Note: approverId, approverName, and approverRoles should come from auth-service/Gateway
      * @param scores Map of criteriaId -> score (optional, for CLASS_MONITOR and ADVISOR scoring)
      */
-    public EvaluationDTO approveEvaluation(Long id, String comment, Long approverId, String approverName, List<String> approverRoles, Map<Long, Double> scores, Map<String, Double> subCriteriaScores) {
+    public EvaluationDTO approveEvaluation(Long id, String comment, Long approverId, String approverName, List<String> approverRoles, Map<Long, Double> scores, Map<String, Double> subCriteriaScores, Map<String, ApprovalRequest.ScoreAdjustment> scoreAdjustments) {
         // Use optimized query with fetch join
         Evaluation evaluation = evaluationRepository.findByIdWithRelations(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Evaluation", "id", id));
@@ -778,6 +778,89 @@ public class EvaluationService {
             }
         }
         
+        // Save score adjustments if provided
+        if (scoreAdjustments != null && !scoreAdjustments.isEmpty()) {
+            boolean isClassMonitor = approverRoles != null && approverRoles.contains("CLASS_MONITOR");
+            boolean isAdvisor = approverRoles != null && approverRoles.contains("ADVISOR");
+            boolean isAdmin = approverRoles != null && approverRoles.contains("ADMIN");
+            
+            logger.info("[DEBUG] Processing scoreAdjustments: count={}, isClassMonitor={}, isAdvisor={}, isAdmin={}", 
+                scoreAdjustments.size(), isClassMonitor, isAdvisor, isAdmin);
+            
+            // Group adjustments by criteriaId
+            Map<Long, Map<String, ApprovalRequest.ScoreAdjustment>> adjustmentsByCriteria = new HashMap<>();
+            for (Map.Entry<String, ApprovalRequest.ScoreAdjustment> entry : scoreAdjustments.entrySet()) {
+                String key = entry.getKey(); // format: "criterionId_subCriteriaId"
+                ApprovalRequest.ScoreAdjustment adjustment = entry.getValue();
+                String[] parts = key.split("_", 2);
+                if (parts.length == 2) {
+                    try {
+                        Long criteriaId = Long.parseLong(parts[0]);
+                        adjustmentsByCriteria.computeIfAbsent(criteriaId, k -> new HashMap<>()).put(key, adjustment);
+                    } catch (NumberFormatException e) {
+                        logger.warn("[DEBUG] Invalid scoreAdjustment key format: {}", key);
+                    }
+                }
+            }
+            
+            // Save adjustments to evaluation details comment as JSON
+            for (Map.Entry<Long, Map<String, ApprovalRequest.ScoreAdjustment>> entry : adjustmentsByCriteria.entrySet()) {
+                Long criteriaId = entry.getKey();
+                Map<String, ApprovalRequest.ScoreAdjustment> adjustments = entry.getValue();
+                
+                EvaluationDetail detail = evaluation.getDetails().stream()
+                    .filter(d -> d.getCriteriaId().equals(criteriaId))
+                    .findFirst()
+                    .orElse(null);
+                
+                if (detail != null) {
+                    try {
+                        // Parse existing comment JSON if exists, otherwise create new
+                        Map<String, Object> commentData = new HashMap<>();
+                        String originalComment = detail.getComment();
+                        
+                        if (originalComment != null && !originalComment.isEmpty()) {
+                            // Check if comment is JSON (starts with {)
+                            if (originalComment.trim().startsWith("{")) {
+                                // It's JSON, parse it
+                                try {
+                                    ObjectMapper mapper = new ObjectMapper();
+                                    commentData = mapper.readValue(originalComment, Map.class);
+                                    logger.info("[DEBUG] Parsed existing JSON comment for adjustments, criteria {}", criteriaId);
+                                } catch (Exception e) {
+                                    // JSON parse failed, treat as evidence string
+                                    logger.warn("[DEBUG] Failed to parse JSON comment for adjustments, treating as evidence string: {}", e.getMessage());
+                                    commentData.put("evidence", originalComment);
+                                }
+                            } else {
+                                // Not JSON, it's evidence string - preserve it
+                                logger.info("[DEBUG] Comment is evidence string, preserving in evidence field for adjustments");
+                                commentData.put("evidence", originalComment);
+                            }
+                        }
+                        
+                        // Add adjustments
+                        String roleKey = (isClassMonitor || isAdmin) && oldStatus == EvaluationStatus.SUBMITTED 
+                            ? "classMonitorAdjustments" 
+                            : "advisorAdjustments";
+                        
+                        commentData.put(roleKey, adjustments);
+                        
+                        // Save as JSON
+                        ObjectMapper mapper = new ObjectMapper();
+                        String jsonComment = mapper.writeValueAsString(commentData);
+                        detail.setComment(jsonComment);
+                        
+                        logger.info("[DEBUG] Saved score adjustments for criteria {}: {} adjustments under key {}", 
+                            criteriaId, adjustments.size(), roleKey);
+                        
+                    } catch (Exception e) {
+                        logger.error("[DEBUG] Failed to save score adjustments as JSON: {}", e.getMessage(), e);
+                    }
+                }
+            }
+        }
+        
         // Create history entry
         EvaluationHistory history = new EvaluationHistory(
             evaluation, "APPROVED", oldStatus.name(), newStatus.name(),
@@ -956,7 +1039,11 @@ public class EvaluationService {
                 evaluation.getStatus().name(), "RESUBMIT");
         }
         
-        // Update details
+        // Update details - preserve existing scores from class monitor and advisor
+        // Only update self-assessment scores
+        Map<Long, EvaluationDetail> existingDetails = evaluation.getDetails().stream()
+            .collect(Collectors.toMap(d -> d.getCriteria().getId(), d -> d));
+        
         evaluation.getDetails().clear();
         double totalScore = 0.0;
         
@@ -973,6 +1060,14 @@ public class EvaluationService {
             
             EvaluationDetail detail = EvaluationMapper.toDetailEntity(
                 detailRequest, evaluation, criteria);
+            
+            // Preserve class monitor and advisor scores if they exist
+            EvaluationDetail existingDetail = existingDetails.get(criteria.getId());
+            if (existingDetail != null) {
+                detail.setClassMonitorScore(existingDetail.getClassMonitorScore());
+                detail.setAdvisorScore(existingDetail.getAdvisorScore());
+            }
+            
             evaluation.getDetails().add(detail);
             totalScore += detailRequest.getScore();
         }
@@ -1073,5 +1168,114 @@ public class EvaluationService {
         // Delete evaluation (cascade will handle details and history)
         evaluationRepository.delete(evaluation);
     }
+    
+    /**
+     * Save draft scores (auto-filled scores) without changing status
+     * This allows class monitor/advisor to have scores pre-filled and saved
+     * @param id Evaluation ID
+     * @param approverId User ID who is saving scores
+     * @param approverRoles User roles
+     * @param subCriteriaScores Map of "criteriaId_subCriteriaId" -> score
+     */
+    public EvaluationDTO saveDraftScores(Long id, Long approverId, List<String> approverRoles, Map<String, Double> subCriteriaScores) {
+        Evaluation evaluation = evaluationRepository.findByIdWithRelations(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Evaluation", "id", id));
+        
+        // Only allow saving draft scores for SUBMITTED status
+        if (evaluation.getStatus() != EvaluationStatus.SUBMITTED) {
+            throw new InvalidStateTransitionException(
+                "Can only save draft scores for SUBMITTED evaluations");
+        }
+        
+        boolean isClassMonitor = approverRoles != null && approverRoles.contains("CLASS_MONITOR");
+        boolean isAdvisor = approverRoles != null && approverRoles.contains("ADVISOR");
+        
+        if (!isClassMonitor && !isAdvisor) {
+            throw new InvalidStateTransitionException(
+                "Only CLASS_MONITOR or ADVISOR can save draft scores");
+        }
+        
+        logger.info("[DRAFT] Saving draft scores for evaluation {}, approver {}, isClassMonitor={}, isAdvisor={}", 
+            id, approverId, isClassMonitor, isAdvisor);
+        
+        // Group sub-criteria scores by criteria
+        Map<Long, Map<String, Double>> scoresByCriteria = new HashMap<>();
+        for (Map.Entry<String, Double> entry : subCriteriaScores.entrySet()) {
+            String key = entry.getKey(); // "criteriaId_subCriteriaId"
+            String[] parts = key.split("_");
+            if (parts.length == 2) {
+                Long criteriaId = Long.parseLong(parts[0]);
+                String subCriteriaId = parts[1];
+                scoresByCriteria.computeIfAbsent(criteriaId, k -> new HashMap<>()).put(subCriteriaId, entry.getValue());
+            }
+        }
+        
+        // Update scores in evaluation details
+        for (Map.Entry<Long, Map<String, Double>> entry : scoresByCriteria.entrySet()) {
+            Long criteriaId = entry.getKey();
+            Map<String, Double> subScores = entry.getValue();
+            
+            // Calculate total score for this criteria
+            double totalScore = subScores.values().stream().mapToDouble(Double::doubleValue).sum();
+            
+            // Find the evaluation detail
+            EvaluationDetail detail = evaluation.getDetails().stream()
+                .filter(d -> d.getCriteriaId().equals(criteriaId))
+                .findFirst()
+                .orElse(null);
+            
+            if (detail != null) {
+                // Save sub-criteria scores in comment as JSON
+                try {
+                    ObjectMapper mapper = new ObjectMapper();
+                    Map<String, Object> commentData = new HashMap<>();
+                    
+                    // Try to parse existing comment
+                    if (detail.getComment() != null && detail.getComment().trim().startsWith("{")) {
+                        try {
+                            commentData = mapper.readValue(detail.getComment(), Map.class);
+                        } catch (Exception e) {
+                            // If parse fails, start fresh
+                            logger.warn("[DRAFT] Failed to parse existing comment, starting fresh");
+                        }
+                    }
+                    
+                    // Get or create scores object
+                    Map<String, Object> scoresData = (Map<String, Object>) commentData.get("scores");
+                    if (scoresData == null) {
+                        scoresData = new HashMap<>();
+                        commentData.put("scores", scoresData);
+                    }
+                    
+                    // Update the appropriate sub-criteria scores
+                    if (isClassMonitor) {
+                        scoresData.put("classMonitorSubCriteria", subScores);
+                        detail.setClassMonitorScore(totalScore);
+                    } else if (isAdvisor) {
+                        scoresData.put("advisorSubCriteria", subScores);
+                        detail.setAdvisorScore(totalScore);
+                    }
+                    
+                    // Save back to comment
+                    detail.setComment(mapper.writeValueAsString(commentData));
+                    
+                    logger.info("[DRAFT] Saved draft scores for criteria {}: total={}, subScores={}", 
+                        criteriaId, totalScore, subScores);
+                    
+                } catch (Exception e) {
+                    logger.error("[DRAFT] Error saving draft scores", e);
+                    throw new RuntimeException("Failed to save draft scores", e);
+                }
+            }
+        }
+        
+        // Save evaluation (status remains SUBMITTED)
+        evaluation = evaluationRepository.save(evaluation);
+        
+        logger.info("[DRAFT] Draft scores saved successfully for evaluation {}", id);
+        
+        return EvaluationMapper.toDTO(evaluation);
+    }
 }
+
 

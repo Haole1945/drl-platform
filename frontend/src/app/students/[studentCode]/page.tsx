@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import type { Evaluation } from '@/types/evaluation';
 import { StatusBadge } from '@/components/StatusBadge';
+import { PrintEvaluationDialog } from '@/components/PrintEvaluationDialog';
 
 export default function StudentDetailPage() {
   const params = useParams();
@@ -201,19 +202,31 @@ export default function StudentDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {evaluations.map((evaluation) => (
-                    <Link key={evaluation.id} href={`/evaluations/${evaluation.id}`}>
-                      <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
-                        <div>
-                          <div className="font-medium">{evaluation.semester}</div>
-                          <div className="text-sm text-muted-foreground">
-                            Điểm: {(evaluation.totalPoints || evaluation.totalScore || 0).toFixed(1)} / {evaluation.maxScore || 'N/A'}
+                  {evaluations.map((evaluation) => {
+                    const isApproved = evaluation.status === 'ADVISOR_APPROVED' || evaluation.status === 'FACULTY_APPROVED';
+                    
+                    return (
+                      <div key={evaluation.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
+                        <Link href={`/evaluations/${evaluation.id}`} className="flex-1">
+                          <div>
+                            <div className="font-medium">{evaluation.semester}</div>
+                            <div className="text-sm text-muted-foreground">
+                              Điểm: {(evaluation.totalPoints || evaluation.totalScore || 0).toFixed(1)} / {evaluation.maxScore || 'N/A'}
+                            </div>
                           </div>
+                        </Link>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={evaluation.status} />
+                          {isApproved && (
+                            <PrintEvaluationDialog 
+                              evaluationId={evaluation.id} 
+                              semester={evaluation.semester}
+                            />
+                          )}
                         </div>
-                        <StatusBadge status={evaluation.status} />
                       </div>
-                    </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

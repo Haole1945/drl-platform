@@ -31,6 +31,11 @@ public class UserMapper {
         dto.setIsActive(user.getIsActive());
         dto.setCreatedAt(user.getCreatedAt());
         
+        // Map signature fields
+        dto.setSignatureImageUrl(user.getSignatureImageUrl());
+        dto.setSignatureUploadedAt(user.getSignatureUploadedAt());
+        dto.setHasSignature(user.getSignatureImageUrl() != null && !user.getSignatureImageUrl().isEmpty());
+        
         // Map roles
         if (user.getRoles() != null) {
             Set<String> roleNames = user.getRoles().stream()

@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge';
 
 interface StatusBadgeProps {
-  status: 'DRAFT' | 'SUBMITTED' | 'CLASS_APPROVED' | 'ADVISOR_APPROVED' | 'FACULTY_APPROVED' | 'REJECTED';
+  status?: 'DRAFT' | 'SUBMITTED' | 'CLASS_APPROVED' | 'ADVISOR_APPROVED' | 'FACULTY_APPROVED' | 'REJECTED';
 }
 
 const statusConfig = {
@@ -34,7 +34,23 @@ const statusConfig = {
 };
 
 export const StatusBadge = ({ status }: StatusBadgeProps) => {
+  if (!status) {
+    return (
+      <Badge variant="secondary">
+        Không xác định
+      </Badge>
+    );
+  }
+  
   const config = statusConfig[status];
+  
+  if (!config) {
+    return (
+      <Badge variant="secondary">
+        {status}
+      </Badge>
+    );
+  }
   
   return (
     <Badge variant={config.variant}>

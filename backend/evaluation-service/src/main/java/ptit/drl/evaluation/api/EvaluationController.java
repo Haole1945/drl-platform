@@ -169,6 +169,7 @@ public class EvaluationController {
         // Extract scores from request (if provided)
         Map<Long, Double> scores = request != null ? request.getScores() : null;
         Map<String, Double> subCriteriaScores = request != null ? request.getSubCriteriaScores() : null;
+        Map<String, ApprovalRequest.ScoreAdjustment> scoreAdjustments = request != null ? request.getScoreAdjustments() : null;
         
         // Debug logging
         System.out.println("[DEBUG] Approval request received:");
@@ -178,6 +179,7 @@ public class EvaluationController {
         System.out.println("  Approver Name: " + approverName);
         System.out.println("  Approver Roles: " + approverRoles);
         System.out.println("  Scores: " + (scores != null ? scores.toString() : "null"));
+        System.out.println("  ScoreAdjustments: " + (scoreAdjustments != null ? scoreAdjustments.size() + " adjustments" : "null"));
         System.out.println("  SubCriteriaScores: " + (subCriteriaScores != null ? subCriteriaScores.toString() : "null"));
         System.out.println("  SubCriteriaScores count: " + (subCriteriaScores != null ? subCriteriaScores.size() : 0));
         if (scores != null && !scores.isEmpty()) {
@@ -196,9 +198,72 @@ public class EvaluationController {
         }
         
         EvaluationDTO evaluation = evaluationService.approveEvaluation(
-            id, comment, approverId, approverName, approverRoles, scores, subCriteriaScores);
+            id, comment, approverId, approverName, approverRoles, scores, subCriteriaScores, scoreAdjustments);
         return ResponseEntity.ok(
             ApiResponse.success("Evaluation approved successfully", evaluation));
+    }
+    
+    /**
+     * PUT /evaluations/{id}/draft-scores - Save draft scores (auto-filled) without approving
+     * This allows class monitor/advisor to have scores pre-filled and saved
+     * Body: { "subCriteriaScores": { "1_1.1": 3, "1_1.2": 10, ... } }
+     * Header: X-User-Id, X-Roles
+     */
+    @PutMapping("/{id}/draft-scores")
+    public ResponseEntity<ApiResponse<EvaluationDTO>> saveDraftScores(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> request,
+            @RequestHeader(value = "X-User-Id", required = false) Long userId,
+            @RequestHeader(value = "X-Roles", required = false) String rolesHeader) {
+        
+        // Get current user from headers
+        Long approverId = userId;
+        
+        // Extract roles from header
+        List<String> approverRoles = new ArrayList<>();
+        if (rolesHeader != null && !rolesHeader.trim().isEmpty()) {
+            approverRoles = Arrays.stream(rolesHeader.split(","))
+                    .map(String::trim)
+                    .filter(role -> !role.isEmpty())
+                    .collect(Collectors.toList());
+        }
+        
+        // Extract sub-criteria scores from request
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rawScores = (Map<String, Object>) request.get("subCriteriaScores");
+        
+        if (rawScores == null || rawScores.isEmpty()) {
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Sub-criteria scores are required"));
+        }
+        
+        // Convert to Map<String, Double> (handle both Integer and Double)
+        Map<String, Double> subCriteriaScores = new java.util.HashMap<>();
+        for (Map.Entry<String, Object> entry : rawScores.entrySet()) {
+            Object value = entry.getValue();
+            Double score;
+            if (value instanceof Integer) {
+                score = ((Integer) value).doubleValue();
+            } else if (value instanceof Double) {
+                score = (Double) value;
+            } else if (value instanceof Number) {
+                score = ((Number) value).doubleValue();
+            } else {
+                score = Double.parseDouble(value.toString());
+            }
+            subCriteriaScores.put(entry.getKey(), score);
+        }
+        
+        System.out.println("[DRAFT] Saving draft scores:");
+        System.out.println("  Evaluation ID: " + id);
+        System.out.println("  Approver ID: " + approverId);
+        System.out.println("  Approver Roles: " + approverRoles);
+        System.out.println("  SubCriteriaScores count: " + subCriteriaScores.size());
+        
+        EvaluationDTO evaluation = evaluationService.saveDraftScores(
+            id, approverId, approverRoles, subCriteriaScores);
+        return ResponseEntity.ok(
+            ApiResponse.success("Draft scores saved successfully", evaluation));
     }
     
     /**

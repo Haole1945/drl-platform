@@ -25,6 +25,12 @@ public class ApprovalRequest {
      */
     private Map<String, Double> subCriteriaScores;
     
+    /**
+     * Map of "criterionId_subCriteriaId" -> adjustment note (reason + evidence)
+     * Stores why the score was adjusted from original
+     */
+    private Map<String, ScoreAdjustment> scoreAdjustments;
+    
     // Constructors
     public ApprovalRequest() {}
     
@@ -56,5 +62,56 @@ public class ApprovalRequest {
     public void setSubCriteriaScores(Map<String, Double> subCriteriaScores) {
         this.subCriteriaScores = subCriteriaScores;
     }
+    
+    public Map<String, ScoreAdjustment> getScoreAdjustments() {
+        return scoreAdjustments;
+    }
+    
+    public void setScoreAdjustments(Map<String, ScoreAdjustment> scoreAdjustments) {
+        this.scoreAdjustments = scoreAdjustments;
+    }
+    
+    /**
+     * Inner class for score adjustment details
+     */
+    public static class ScoreAdjustment {
+        private Double originalScore;
+        private Double newScore;
+        private String reason;
+        private String evidence; // File URLs comma-separated
+        
+        public ScoreAdjustment() {}
+        
+        public Double getOriginalScore() {
+            return originalScore;
+        }
+        
+        public void setOriginalScore(Double originalScore) {
+            this.originalScore = originalScore;
+        }
+        
+        public Double getNewScore() {
+            return newScore;
+        }
+        
+        public void setNewScore(Double newScore) {
+            this.newScore = newScore;
+        }
+        
+        public String getReason() {
+            return reason;
+        }
+        
+        public void setReason(String reason) {
+            this.reason = reason;
+        }
+        
+        public String getEvidence() {
+            return evidence;
+        }
+        
+        public void setEvidence(String evidence) {
+            this.evidence = evidence;
+        }
+    }
 }
-

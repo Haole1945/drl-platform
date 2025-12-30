@@ -59,7 +59,7 @@ public class AppealService {
         }
         
         // Create appeal
-        Appeal appeal = new Appeal(evaluation, studentCode, request.getReason());
+        Appeal appeal = new Appeal(evaluation, studentCode, request.getAppealReason());
         Appeal saved = appealRepository.save(appeal);
         
         // Send notification to reviewers (Admin and Faculty)

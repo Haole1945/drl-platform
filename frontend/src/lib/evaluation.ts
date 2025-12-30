@@ -76,9 +76,26 @@ export async function approveEvaluation(
   id: number,
   comment?: string,
   scores?: Record<number, number>,
-  subCriteriaScores?: Record<string, number> // "criterionId_subCriteriaId" -> score
+  subCriteriaScores?: Record<string, number>, // "criterionId_subCriteriaId" -> score
+  scoreAdjustments?: Record<string, { reason: string; evidence: string }> // "criterionId_subCriteriaId" -> { reason, evidence }
 ): Promise<ApiResponse<Evaluation>> {
-  return apiClient.post<Evaluation>(`/evaluations/${id}/approve`, { comment, scores, subCriteriaScores });
+  return apiClient.post<Evaluation>(`/evaluations/${id}/approve`, { 
+    comment, 
+    scores, 
+    subCriteriaScores,
+    scoreAdjustments 
+  });
+}
+
+/**
+ * Save draft scores (auto-filled) without approving
+ * This allows class monitor/advisor to have scores pre-filled and saved
+ */
+export async function saveDraftScores(
+  id: number,
+  subCriteriaScores: Record<string, number> // "criterionId_subCriteriaId" -> score
+): Promise<ApiResponse<Evaluation>> {
+  return apiClient.put<Evaluation>(`/evaluations/${id}/draft-scores`, { subCriteriaScores });
 }
 
 /**

@@ -19,6 +19,11 @@ public class UserDTO {
     private Boolean isActive;
     private LocalDateTime createdAt;
     
+    // Signature fields
+    private String signatureImageUrl;
+    private LocalDateTime signatureUploadedAt;
+    private Boolean hasSignature;
+    
     // Getters and Setters
     public Long getId() {
         return id;
@@ -98,6 +103,31 @@ public class UserDTO {
     
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+    
+    public String getSignatureImageUrl() {
+        return signatureImageUrl;
+    }
+    
+    public void setSignatureImageUrl(String signatureImageUrl) {
+        this.signatureImageUrl = signatureImageUrl;
+        this.hasSignature = signatureImageUrl != null && !signatureImageUrl.isEmpty();
+    }
+    
+    public LocalDateTime getSignatureUploadedAt() {
+        return signatureUploadedAt;
+    }
+    
+    public void setSignatureUploadedAt(LocalDateTime signatureUploadedAt) {
+        this.signatureUploadedAt = signatureUploadedAt;
+    }
+    
+    public Boolean getHasSignature() {
+        return hasSignature;
+    }
+    
+    public void setHasSignature(Boolean hasSignature) {
+        this.hasSignature = hasSignature;
     }
 }
 
